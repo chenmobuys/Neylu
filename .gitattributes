@@ -5,4 +5,3 @@
 *.png binary
 *.icns binary
 Design/ export-ignore
-.github/ export-ignore
