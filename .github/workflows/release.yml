@@ -122,6 +122,10 @@ jobs:
           RELEASE_VERSION: ${{ needs.release.outputs.version }}
         run: |
           branch="automation/homebrew-$RELEASE_VERSION"
+          if [ -n "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
+            echo 'Homebrew update PR already exists.'
+            exit 0
+          fi
           mkdir -p Casks
           cp release-files/neylu.rb Casks/neylu.rb
           rm -rf release-files
@@ -132,7 +136,7 @@ jobs:
           git checkout -b "$branch"
           git add Casks/neylu.rb
           git commit -m "chore: 更新 Neylu $RELEASE_VERSION 的 Homebrew 安装配置"
-          git push --force-with-lease origin "HEAD:refs/heads/$branch"
+          git push origin "HEAD:refs/heads/$branch"
           if [ -z "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
             gh pr create --head "$branch" --title "chore: 更新 Neylu $RELEASE_VERSION 的 Homebrew 安装配置" \
               --body '由已签名、公证的 GitHub Release 生成；SHA-256 对应本次发布附件。合并后 tap 生效。'
