@@ -1,0 +1,139 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag: v1.0.40 or v1.0.40-preview.1'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 50
+    environment: release
+    permissions:
+      contents: write
+    outputs:
+      channel: ${{ steps.metadata.outputs.channel }}
+      version: ${{ steps.metadata.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - name: Validate tag, version and changelog
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          channel="$(python3 scripts/release.py validate --tag "$RELEASE_TAG")"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          git show-ref --verify "refs/tags/$RELEASE_TAG"
+      - name: Test release inputs
+        run: |
+          python3 -m unittest discover -s Tests -p 'test_*.py' -v
+          ./test-history.sh
+      - name: Build
+        run: ./build.sh
+      - name: Runtime smoke test
+        run: build/Neylu.app/Contents/MacOS/Neylu --self-test
+      - name: Sign and notarize stable release
+        if: steps.metadata.outputs.channel == 'stable'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: scripts/sign-and-notarize.sh "$PWD/build/Neylu.app"
+      - name: Package and checksum
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            mkdir -p dist
+            gh release download "$RELEASE_TAG" --dir dist
+            python3 scripts/release.py verify-assets --output dist --repository "$RELEASE_REPOSITORY" --tag "$RELEASE_TAG"
+          else
+            python3 scripts/release.py package --app build/Neylu.app --output dist \
+              --repository "$RELEASE_REPOSITORY" --tag "$RELEASE_TAG"
+          fi
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-files
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+      - name: Publish release (preview stays draft)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          CHANNEL: ${{ steps.metadata.outputs.channel }}
+        run: |
+          # A rerun must not replace assets behind an already-published checksum.
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release exists; keeping published assets immutable.'
+            mkdir -p .build/existing-release
+            gh release download "$RELEASE_TAG" --pattern release.json --dir .build/existing-release
+            cmp dist/release.json .build/existing-release/release.json
+          else
+            flags=()
+            assets=(dist/*.zip dist/SHA256SUMS dist/release.json)
+            if [ "$CHANNEL" = preview ]; then flags+=(--draft --prerelease); else assets+=(dist/neylu.rb); fi
+            gh release create "$RELEASE_TAG" --verify-tag --title "Neylu $RELEASE_TAG" \
+              --notes-file dist/release-notes.md "${flags[@]}" "${assets[@]}"
+          fi
+  homebrew:
+    name: Propose Homebrew update
+    needs: release
+    if: needs.release.outputs.channel == 'stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-files
+          path: release-files
+      - name: Open Cask update pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          branch="automation/homebrew-$RELEASE_VERSION"
+          mkdir -p Casks
+          cp release-files/neylu.rb Casks/neylu.rb
+          rm -rf release-files
+          if git diff --quiet -- Casks && [ -z "$(git ls-files --others --exclude-standard Casks)" ]; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          gh auth setup-git
+          git checkout -b "$branch"
+          git add Casks/neylu.rb
+          git commit -m "chore: 更新 Neylu $RELEASE_VERSION 的 Homebrew 安装配置"
+          git push --force-with-lease origin "HEAD:refs/heads/$branch"
+          if [ -z "$(gh pr list --head "$branch" --json number --jq '.[0].number')" ]; then
+            gh pr create --head "$branch" --title "chore: 更新 Neylu $RELEASE_VERSION 的 Homebrew 安装配置" \
+              --body '由已签名、公证的 GitHub Release 生成；SHA-256 对应本次发布附件。合并后 tap 生效。'
+          fi

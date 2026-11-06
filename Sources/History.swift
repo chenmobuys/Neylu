@@ -1,0 +1,290 @@
+import Foundation
+import SQLite3
+
+struct CPUPoint: Codable, Equatable {
+    let timestamp: Date
+    let user: Double
+    let system: Double
+}
+
+struct GPUPoint: Codable, Equatable {
+    let timestamp: Date
+    let total: Double
+    let renderer: Double
+    let tiler: Double
+}
+
+struct MemoryPoint: Codable, Equatable {
+    let timestamp: Date
+    let used: UInt64
+    let total: UInt64
+}
+
+struct NetworkPoint: Codable, Equatable {
+    let timestamp: Date
+    let download: Double
+    let upload: Double
+}
+
+struct HistorySample {
+    let timestamp: Date
+    let cpu: CPUPoint?
+    let gpu: GPUPoint?
+    let memory: MemoryPoint?
+    let network: NetworkPoint?
+    init(timestamp: Date, cpu: CPUPoint?, gpu: GPUPoint?, memory: MemoryPoint? = nil, network: NetworkPoint? = nil) {
+        self.timestamp = timestamp
+        self.cpu = cpu
+        self.gpu = gpu
+        self.memory = memory
+        self.network = network
+    }
+}
+
+struct HistoryWindow {
+    static let duration: TimeInterval = 120
+    static func segments<T>(_ points: [T], timestamp: KeyPath<T, Date>, now: Date) -> [[T]] {
+        let cutoff = now.addingTimeInterval(-duration)
+        let visible = points.filter { $0[keyPath: timestamp] >= cutoff && $0[keyPath: timestamp] <= now }
+            .sorted { $0[keyPath: timestamp] < $1[keyPath: timestamp] }
+        // Connect the recorded endpoints across sampling pauses for a continuous
+        // overview. Keep real timestamps; no interpolated samples are persisted.
+        return visible.isEmpty ? [] : [visible]
+    }
+
+    static func fraction(_ date: Date, now: Date) -> Double {
+        min(1, max(0, 1 + date.timeIntervalSince(now) / duration))
+    }
+}
+
+// All SQLite work and pending samples are owned by this serial queue.
+// Incremental transactions avoid rewriting a full day of history on every save.
+final class HistoryStore {
+    static let retention: TimeInterval = 24 * 60 * 60
+    static var defaultURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Neylu", isDirectory: true).appendingPathComponent("history.sqlite")
+    }
+    private let queue = DispatchQueue(label: "local.Neylu.history", qos: .utility)
+    private var database: OpaquePointer?
+    private var pending: [HistorySample] = []
+    private var lastWrite = ProcessInfo.processInfo.systemUptime
+    var onError: ((String) -> Void)?
+
+    struct StoreError: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
+    }
+
+    // SQLite backup includes committed WAL pages, even if the old app is still open.
+    // Never overwrite a new installation's history or remove the legacy database.
+    static func migrateLegacyHistoryIfNeeded(to destination: URL, from legacy: URL) throws {
+        let files = FileManager.default
+        guard !files.fileExists(atPath: destination.path), files.fileExists(atPath: legacy.path) else { return }
+        try files.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let temporary = destination.deletingLastPathComponent().appendingPathComponent("history-migration-\(UUID().uuidString).sqlite")
+        var source: OpaquePointer?
+        var target: OpaquePointer?
+        defer {
+            if let target { sqlite3_close(target) }
+            if let source { sqlite3_close(source) }
+            try? files.removeItem(at: temporary)
+        }
+        guard sqlite3_open_v2(legacy.path, &source, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
+              sqlite3_open_v2(temporary.path, &target, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            throw StoreError(message: "无法迁移旧版历史数据库")
+        }
+        sqlite3_busy_timeout(source, 1_000)
+        sqlite3_busy_timeout(target, 1_000)
+        guard let backup = sqlite3_backup_init(target, "main", source, "main") else {
+            throw StoreError(message: "无法读取旧版历史数据库")
+        }
+        var status = sqlite3_backup_step(backup, -1)
+        for _ in 0..<5 where status == SQLITE_BUSY || status == SQLITE_LOCKED {
+            Thread.sleep(forTimeInterval: 0.05)
+            status = sqlite3_backup_step(backup, -1)
+        }
+        let finish = sqlite3_backup_finish(backup)
+        guard status == SQLITE_DONE, finish == SQLITE_OK else {
+            throw StoreError(message: "旧版历史迁移失败，原记录已保留")
+        }
+        guard sqlite3_close(target) == SQLITE_OK else {
+            throw StoreError(message: "无法保存迁移后的历史数据库")
+        }
+        target = nil
+        try files.moveItem(at: temporary, to: destination)
+    }
+
+    init(url: URL = HistoryStore.defaultURL) throws {
+        if url == Self.defaultURL {
+            let legacy = url.deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("QuietBar", isDirectory: true).appendingPathComponent("history.sqlite")
+            try Self.migrateLegacyHistoryIfNeeded(to: url, from: legacy)
+        }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let status = sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil)
+        guard status == SQLITE_OK else {
+            let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "无法打开历史数据库"
+            if database != nil { sqlite3_close(database); database = nil }
+            throw StoreError(message: message)
+        }
+        do {
+            sqlite3_busy_timeout(database, 1_000)
+            var statement: OpaquePointer?
+            try prepare("PRAGMA user_version", into: &statement)
+            let version = sqlite3_step(statement) == SQLITE_ROW ? sqlite3_column_int(statement, 0) : -1
+            sqlite3_finalize(statement)
+            guard (0...2).contains(version) else { throw StoreError(message: "不支持的历史数据库版本：\(version)") }
+            try execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+            try execute("BEGIN IMMEDIATE")
+            do {
+                try execute("CREATE TABLE IF NOT EXISTS samples (timestamp REAL PRIMARY KEY, cpu_user REAL, cpu_system REAL, gpu_total REAL, gpu_renderer REAL, gpu_tiler REAL);")
+                try execute("CREATE TABLE IF NOT EXISTS memory_samples (timestamp REAL PRIMARY KEY, used INTEGER NOT NULL, total INTEGER NOT NULL);")
+                try execute("CREATE TABLE IF NOT EXISTS network_samples (timestamp REAL PRIMARY KEY, download REAL NOT NULL, upload REAL NOT NULL);")
+                try execute("PRAGMA user_version=2; COMMIT;")
+            } catch { try? execute("ROLLBACK"); throw error }
+            try prune(now: Date())
+        } catch {
+            sqlite3_close(database)
+            database = nil
+            throw error
+        }
+    }
+    deinit { if database != nil { sqlite3_close(database) } }
+
+    func load(since: Date, now: Date = Date()) throws -> (cpu: [CPUPoint], gpu: [GPUPoint], memory: [MemoryPoint], network: [NetworkPoint]) {
+        try queue.sync {
+            var statement: OpaquePointer?
+            try prepare("SELECT timestamp,cpu_user,cpu_system,gpu_total,gpu_renderer,gpu_tiler FROM samples WHERE timestamp>=? AND timestamp<=? ORDER BY timestamp", into: &statement)
+            defer { sqlite3_finalize(statement) }
+            sqlite3_bind_double(statement, 1, since.timeIntervalSince1970)
+            sqlite3_bind_double(statement, 2, now.timeIntervalSince1970)
+            var cpu: [CPUPoint] = [], gpu: [GPUPoint] = []
+            var status = sqlite3_step(statement)
+            while status == SQLITE_ROW {
+                let date = Date(timeIntervalSince1970: sqlite3_column_double(statement, 0))
+                func value(_ column: Int32) -> Double? {
+                    guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }
+                    let value = sqlite3_column_double(statement, column)
+                    return value.isFinite && (0...100).contains(value) ? value : nil
+                }
+                if let user = value(1), let system = value(2), user + system <= 100.001 {
+                    cpu.append(CPUPoint(timestamp: date, user: user, system: system))
+                }
+                if let total = value(3), let renderer = value(4), let tiler = value(5) {
+                    gpu.append(GPUPoint(timestamp: date, total: total, renderer: renderer, tiler: tiler))
+                }
+                status = sqlite3_step(statement)
+            }
+            guard status == SQLITE_DONE else { throw currentError() }
+            return (cpu, gpu, try loadMemory(since: since, now: now), try loadNetwork(since: since, now: now))
+        }
+    }
+    private func loadMemory(since: Date, now: Date) throws -> [MemoryPoint] {
+        var statement: OpaquePointer?
+        try prepare("SELECT timestamp,used,total FROM memory_samples WHERE timestamp>=? AND timestamp<=? ORDER BY timestamp", into: &statement)
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_double(statement, 1, since.timeIntervalSince1970)
+        sqlite3_bind_double(statement, 2, now.timeIntervalSince1970)
+        var result: [MemoryPoint] = []
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
+            let used = sqlite3_column_int64(statement, 1), total = sqlite3_column_int64(statement, 2)
+            if used >= 0, total > 0, used <= total {
+                result.append(MemoryPoint(timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 0)), used: UInt64(used), total: UInt64(total)))
+            }
+            status = sqlite3_step(statement)
+        }
+        guard status == SQLITE_DONE else { throw currentError() }
+        return result
+    }
+    private func loadNetwork(since: Date, now: Date) throws -> [NetworkPoint] {
+        var statement: OpaquePointer?
+        try prepare("SELECT timestamp,download,upload FROM network_samples WHERE timestamp>=? AND timestamp<=? ORDER BY timestamp", into: &statement)
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_double(statement, 1, since.timeIntervalSince1970)
+        sqlite3_bind_double(statement, 2, now.timeIntervalSince1970)
+        var result: [NetworkPoint] = []
+        var status = sqlite3_step(statement)
+        while status == SQLITE_ROW {
+            let download = sqlite3_column_double(statement, 1), upload = sqlite3_column_double(statement, 2)
+            if download.isFinite, upload.isFinite, download >= 0, upload >= 0 {
+                result.append(NetworkPoint(timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 0)), download: download, upload: upload))
+            }
+            status = sqlite3_step(statement)
+        }
+        guard status == SQLITE_DONE else { throw currentError() }
+        return result
+    }
+    func append(_ sample: HistorySample) {
+        queue.async { [self] in
+            pending.append(sample)
+            if ProcessInfo.processInfo.systemUptime - lastWrite >= 30 {
+                do { try writePending() } catch { onError?(error.localizedDescription) }
+            }
+        }
+    }
+    func flush() throws { try queue.sync { try writePending() } }
+
+    private func writePending() throws {
+        guard !pending.isEmpty else { return }
+        try execute("BEGIN IMMEDIATE")
+        do {
+            var statement: OpaquePointer?
+            try prepare("INSERT OR REPLACE INTO samples VALUES (?,?,?,?,?,?)", into: &statement)
+            var memoryStatement: OpaquePointer?, networkStatement: OpaquePointer?
+            defer { sqlite3_finalize(statement); sqlite3_finalize(memoryStatement); sqlite3_finalize(networkStatement) }
+            try prepare("INSERT OR REPLACE INTO memory_samples VALUES (?,?,?)", into: &memoryStatement)
+            try prepare("INSERT OR REPLACE INTO network_samples VALUES (?,?,?)", into: &networkStatement)
+            for sample in pending {
+                sqlite3_reset(statement)
+                sqlite3_clear_bindings(statement)
+                let values: [Double?] = [sample.timestamp.timeIntervalSince1970, sample.cpu?.user, sample.cpu?.system, sample.gpu?.total, sample.gpu?.renderer, sample.gpu?.tiler]
+                for (index, value) in values.enumerated() {
+                    if let value, value.isFinite { sqlite3_bind_double(statement, Int32(index + 1), value) }
+                    else { sqlite3_bind_null(statement, Int32(index + 1)) }
+                }
+                guard sqlite3_step(statement) == SQLITE_DONE else { throw currentError() }
+                if let memory = sample.memory {
+                    sqlite3_reset(memoryStatement); sqlite3_clear_bindings(memoryStatement)
+                    sqlite3_bind_double(memoryStatement, 1, sample.timestamp.timeIntervalSince1970)
+                    sqlite3_bind_int64(memoryStatement, 2, Int64(memory.used))
+                    sqlite3_bind_int64(memoryStatement, 3, Int64(memory.total))
+                    guard sqlite3_step(memoryStatement) == SQLITE_DONE else { throw currentError() }
+                }
+                if let network = sample.network {
+                    sqlite3_reset(networkStatement); sqlite3_clear_bindings(networkStatement)
+                    sqlite3_bind_double(networkStatement, 1, sample.timestamp.timeIntervalSince1970)
+                    sqlite3_bind_double(networkStatement, 2, network.download)
+                    sqlite3_bind_double(networkStatement, 3, network.upload)
+                    guard sqlite3_step(networkStatement) == SQLITE_DONE else { throw currentError() }
+                }
+            }
+            try prune(now: Date())
+            try execute("COMMIT")
+            pending.removeAll(keepingCapacity: true)
+            lastWrite = ProcessInfo.processInfo.systemUptime
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+    private func prune(now: Date) throws {
+        for table in ["samples", "memory_samples", "network_samples"] {
+            var statement: OpaquePointer?
+            try prepare("DELETE FROM \(table) WHERE timestamp<?", into: &statement)
+            defer { sqlite3_finalize(statement) }
+            sqlite3_bind_double(statement, 1, now.addingTimeInterval(-Self.retention).timeIntervalSince1970)
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw currentError() }
+        }
+    }
+    private func prepare(_ sql: String, into statement: inout OpaquePointer?) throws {
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else { throw currentError() }
+    }
+    private func execute(_ sql: String) throws {
+        guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else { throw currentError() }
+    }
+    private func currentError() -> StoreError {
+        StoreError(message: database.map { String(cString: sqlite3_errmsg($0)) } ?? "历史数据库未打开")
+    }
+}
