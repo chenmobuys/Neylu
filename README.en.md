@@ -24,7 +24,7 @@ The preview uses demonstration readings and a documentation-only IP address. In 
 
 ## Install
 
-The development branch targets macOS 12 or later. Published releases through 0.1.0-alpha.4 require macOS 13; macOS 12 support will ship in the next release. This is an early preview, ad hoc signed and not notarized by Apple. You do not need Xcode or an Apple Developer membership to use it.
+Requires macOS 12 or later. Releases through 0.1.0-alpha.4 require macOS 13. This is an early preview, ad hoc signed and not notarized by Apple. You do not need Xcode or an Apple Developer membership to use it.
 
 1. Download a DMG from [GitHub Releases](https://github.com/chenmobuys/Neylu/releases): choose `arm64` for Apple Silicon or `x86_64` for Intel.
 2. Open the DMG and drag **Neylu.app** into **Applications**.

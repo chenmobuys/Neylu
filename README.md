@@ -150,7 +150,7 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 
 | 项目 | 支持情况 |
 | --- | --- |
-| 运行 | Apple Silicon 或 Intel、macOS 12+（开发分支；已发布至 alpha.4 的安装包仍要求 13+） |
+| 运行 | Apple Silicon 或 Intel、macOS 12+（alpha.4 及更早版本要求 13+） |
 | 源码构建 | Xcode 26+，需要 macOS 26+ SDK |
 | CPU / 内存 / 网络 | 按所选刷新间隔采样，默认 2 秒；网络自动使用主接口 |
 | CPU 温度 | 按 Intel、Apple M1–M5 区分已知传感器；未知型号显示不支持，读取失败显示不可用。当前实际验证设备为 M3 Max，其他型号仍需硬件回归 |

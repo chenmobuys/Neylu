@@ -2,16 +2,27 @@
 
 ## [Unreleased]
 
-- Support macOS 12 and later, with a bundled login helper on Monterey and AppKit chart hover tracking. Keep SMAppService on macOS 13+ and system glass on macOS 26+.
-- Group sampling, units, language, login, and automatic update options under Preferences; reuse native menu items and submenus while updating their titles and state. Preserve each published installer’s actual minimum macOS requirement in appcasts and Homebrew.
-- 支持 macOS 12 及以上：Monterey 使用内置登录辅助应用，图表悬浮统一使用 AppKit；13+ 保留 SMAppService，26+ 保留系统玻璃效果。
-- 将刷新、单位、语言、开机启动和自动更新选项归入「偏好设置」；原生菜单与子菜单持续复用，仅更新文案和状态。appcast 与 Homebrew 保留各历史安装包真实的最低系统要求。
+## [0.1.0-alpha.5] - 2026-11-08
 
-- Discover updates through architecture-specific static RSS appcasts instead of the unauthenticated GitHub REST API. Keep the native updater and existing installer verification without bundling Sparkle.
-- Generate and publish feeds automatically after verifying released installers; retain stable/preview history and continue independent Homebrew synchronization.
-- Share short-lived metadata caches and in-flight requests between manual/background checks, with cancellation when the final consumer leaves.
-- 更新检查改用架构独立的静态 appcast，不再请求未登录 GitHub REST API；保留原生更新界面及现有安装校验，不引入 Sparkle 框架。
-- 发布后自动校验安装包并更新静态订阅，保留正式版与测试版历史，Homebrew 继续独立自动同步；手动和后台检查共用短时缓存及进行中的请求，最后一个调用取消时停止下载。
+<!-- neylu:en -->
+### English
+
+- **Clearer menus:** Keep menu bar display and appearance options at the top, group refresh interval, units, language, login, and automatic update checks under Preferences, and separate update and app information actions. Native menu items and submenus retain their identity as titles and states change.
+- **macOS Monterey support:** Lower the minimum system requirement to macOS 12 for both Apple Silicon and Intel. Use a small bundled login helper on Monterey and AppKit for chart hover tracking. Preserve SMAppService on macOS 13+ and system glass on macOS 26+. macOS 12 has not yet been tested on a physical device.
+- **Reliable update discovery:** Read architecture-specific static appcasts instead of the unauthenticated GitHub REST API, avoiding that API’s shared request limit. Keep the native update interface and existing installer verification without adding the Sparkle framework. Manual and background checks share a short-lived cache and in-flight requests; downloads stop when the last consumer cancels.
+- **Automated distribution:** Verify published installers before generating static feeds and synchronizing Homebrew. Retain stable and preview history and each release’s actual minimum macOS requirement.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions. Earlier Alphas still use the GitHub API to check for updates; if an older version cannot find this release, download the DMG from the release page.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **菜单重新整理：** 菜单栏显示与外观放在顶部，刷新间隔、单位进制、语言、开机启动和自动检查更新归入「偏好设置」，更新与软件信息单独分组。原生菜单和子菜单持续复用，更新文案与状态时不重建。
+- **兼容 macOS Monterey：** Apple Silicon 与 Intel 均支持 macOS 12 及以上；Monterey 使用轻量内置登录辅助应用，图表悬浮读数统一采用 AppKit。13+ 保留 SMAppService，26+ 保留系统玻璃效果。macOS 12 尚未完成实机验证。
+- **改进更新检查：** 使用架构独立的静态 appcast，避免未登录 GitHub REST API 的共享请求限额；保留原生更新界面与现有安装校验，不额外捆绑 Sparkle。手动与后台检查共用短时缓存和进行中的请求，最后一个调用取消时停止下载。
+- **自动发布同步：** 校验已发布安装包后自动生成静态订阅并同步 Homebrew，保留正式版、测试版历史及各版本真实的最低系统要求。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。更早的 Alpha 仍通过 GitHub API 检查更新，若旧版无法发现本次更新，请前往发布页下载 DMG。
 
 ## [0.1.0-alpha.4] - 2026-11-07
 
