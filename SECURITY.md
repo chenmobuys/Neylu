@@ -1,11 +1,21 @@
-# 安全反馈
+# 安全反馈 / Security policy
 
-目前维护最新发布版本。监控数据只保存在本机，不上传，不要求管理员权限。手动检查更新或下载安装包时，Neylu 会访问 GitHub API 及 GitHub 的 HTTPS 附件下载域名，不需要登录 GitHub，也不发送监控读数。更新器核对 GitHub 提供的 SHA-256、代码签名、应用标识、版本与架构；已使用 Developer ID 签名的应用同时约束 Apple 签名链和 Team ID。当前 Alpha 没有 Developer ID 与公证，其更新来源信任依赖本仓库 GitHub 发布渠道，摘要用于发现损坏，不替代开发者身份认证。
+## 简体中文
 
-请不要在公开 Issue 中提交密钥、证书、完整私人诊断记录或尚未修复的漏洞细节。
-启用仓库 Security → Advisories → Private vulnerability reporting 后，请使用该入口私下报告。
-若入口尚未启用，请先联系仓库维护者确认私下沟通方式，不要直接公开敏感内容。
+维护最新发布版本。监控读数保存在本机，无遥测，不上传数据，不要求管理员权限。默认每天检查一次静态 appcast，可关闭；手动检查与下载安装包也会访问 GitHub 静态内容及 HTTPS 附件服务。客户端不请求 GitHub REST API，不需要账号或 Token。
 
-正式二进制由 Developer ID 签名并经 Apple 公证；后续 Release 只附带 DMG，使用 GitHub 自动生成的 SHA-256 摘要。
-CI 与 alpha / beta / rc 仅使用 ad-hoc 签名，不能替代正式分发包。
-安装包和自动化流程不会关闭 Gatekeeper、SIP 或自动移除隔离属性。README 提供仅针对 Neylu 的手动首次打开说明，是否允许未经公证的测试版由用户决定。
+更新器验证 SHA-256、代码签名、应用标识、完整版本、架构和最低系统要求；已有 Developer ID 的安装还约束 Apple 签名链与 Team ID。当前预发布版仅 ad-hoc 签名、未经 Apple 公证，更新来源信任依赖本仓库的 GitHub HTTPS 渠道；摘要不替代发布者身份认证。正式版发布流程要求 Developer ID 与公证，不代表当前已有正式签名版本。
+
+安装包、Homebrew 和发布自动化不关闭 Gatekeeper/SIP、不自动删除安装 App 的隔离标记。alpha.6 起，用户确认更新后，验证已安装 App 及其复制后的辅助程序，只处理私有暂存辅助程序副本的隔离标记，不修改来源 App、下载候选应用或其他元数据。首次打开是否允许未经公证的软件由用户决定，见[更新与排错](docs/UPDATING.md)。
+
+请勿公开密钥、证书、私人诊断或尚未修复的漏洞细节。优先使用仓库 **Security → Advisories → Private vulnerability reporting** 私下报告；若入口不可用，请先联系维护者取得私下沟通方式。
+
+## English
+
+The latest published release is maintained. Monitoring data stays local, with no telemetry, uploads, or administrator privileges. Static appcast checks run daily by default and can be disabled. Manual checks and installer downloads also use GitHub’s static content and HTTPS asset services. The client does not use the GitHub REST API or require an account or token.
+
+The updater validates SHA-256, code signatures, app identifier, full version, architecture, and minimum macOS requirement. An existing Developer ID installation also enforces the Apple signing chain and Team ID. Current previews are ad hoc signed and not notarized. Publisher trust relies on this repository’s GitHub HTTPS channel; digests do not establish publisher identity. Stable-release automation requires Developer ID signing and notarization, but no current preview should be described as notarized.
+
+Installers, Homebrew, and release automation do not disable Gatekeeper/SIP or automatically clear quarantine on the installed app. Since alpha.6, after the user requests an update, the installed app and copied helper are verified before quarantine is removed only from that private helper copy. The source app, downloaded candidate, and unrelated metadata remain unchanged. Users decide whether to allow an unnotarized first launch; see [updating and troubleshooting](docs/UPDATING.en.md).
+
+Do not disclose credentials, certificates, private diagnostics, or details of unfixed vulnerabilities publicly. Prefer **Security → Advisories → Private vulnerability reporting** in this repository. If it is unavailable, contact the maintainer to establish a private reporting channel first.

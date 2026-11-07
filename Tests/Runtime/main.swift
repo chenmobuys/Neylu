@@ -325,6 +325,22 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(escapeWindow.isVisible)
     escapeWindow.cancelOperation(nil)
     precondition(!escapeWindow.isVisible)
+    final class FocusablePreviewControl: NSView {
+        override var acceptsFirstResponder: Bool { true }
+    }
+    let focusWindow = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 120, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+    focusWindow.isReleasedWhenClosed = false
+    let focusControl = FocusablePreviewControl(frame: NSRect(x: 8,y: 8,width: 50,height: 20))
+    focusWindow.contentView!.addSubview(focusControl)
+    focusWindow.initialFirstResponder = focusControl
+    focusWindow.makeKeyAndOrderFront(nil)
+    precondition(focusWindow.firstResponder !== focusControl)
+    focusWindow.selectNextKeyView(nil)
+    precondition(focusWindow.firstResponder === focusControl)
+    focusWindow.makeKeyAndOrderFront(nil)
+    precondition(focusWindow.firstResponder === focusControl)
+    focusWindow.close()
+    print("PASS: utility windows avoid automatic link/control focus on opening, preserve Tab navigation and retain focus when brought forward")
     let settingsCoordinator = SettingsMenuButton.Coordinator(settings: visibilityModel.settings)
     visibilityModel.settings.availableUpdateVersion = "0.1.0-alpha.10"
     let badgeMenu = settingsCoordinator.makeMenu(pullsDown: false)

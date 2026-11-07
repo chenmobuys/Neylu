@@ -94,5 +94,15 @@ enum ReleaseNotesHistory {
 }
 
 final class UtilityWindow: NSWindow {
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        let opening = !isVisible
+        let event = NSApp.currentEvent
+        let keyboardInitiated = event?.type == .keyDown || event?.type == .keyUp
+        super.makeKeyAndOrderFront(sender)
+        // Pointer/programmatic openings should not preselect the first link or
+        // control. Tab still enters the native key-view loop; existing windows
+        // retain the user's focus, and keyboard-initiated openings stay native.
+        if opening && !keyboardInitiated { makeFirstResponder(nil) }
+    }
     override func cancelOperation(_ sender: Any?) { close() }
 }

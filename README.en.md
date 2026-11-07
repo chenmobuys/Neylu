@@ -1,110 +1,63 @@
-<p align="center"><img src="Assets/AppIcon-v5-vector.svg" width="112" alt="Neylu icon"></p>
+<p align="center"><img src="Assets/AppIcon-v5-vector.svg" width="96" alt="Neylu icon"></p>
 <h1 align="center">Neylu</h1>
 <p align="center"><a href="README.md">简体中文</a> · English</p>
-
-A compact, native system monitor for the macOS menu bar.
+<p align="center">A compact, native system monitor for the macOS menu bar.</p>
 
 [![CI](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml/badge.svg)](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases)](https://github.com/chenmobuys/Neylu/releases)
-[![License: MIT](https://img.shields.io/github/license/chenmobuys/Neylu)](LICENSE)
+[![MIT](https://img.shields.io/github/license/chenmobuys/Neylu)](LICENSE)
+![macOS 12+](https://img.shields.io/badge/macOS-12%2B-111827?logo=apple&logoColor=white)
+![Apple Silicon and Intel](https://img.shields.io/badge/arch-arm64%20%7C%20x86__64-007AFF)
+![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)
+[![Stars](https://img.shields.io/github/stars/chenmobuys/Neylu)](https://github.com/chenmobuys/Neylu/stargazers)
 
-<p align="center"><img src="docs/images/overview-light-en@2x.png" width="380" alt="Neylu overview: CPU, GPU, memory, network, and disk activity"></p>
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/overview-dark-en@2x.png">
+  <img src="docs/images/overview-light-en@2x.png" width="380" alt="Neylu overview">
+</picture></p>
 
-The preview uses demonstration readings and a documentation-only IP address. In the running app, native materials adapt to the system appearance and desktop background.
+The preview uses demonstration readings. Native materials adapt to the system appearance and desktop background.
 
 ## Features
 
-- One menu bar item with configurable metrics and drag-and-drop ordering.
-- CPU and GPU utilization, memory usage, network transfer rates, and disk usage and I/O.
-- External disk monitoring with native eject controls.
-- Automatic, light, and dark appearance; English and Simplified Chinese.
+- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show and reorder it.
+- Live charts, CPU temperature on supported hardware, and disk capacity and read/write rates; monitor and eject external drives.
+- Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance.
+- English and Simplified Chinese; configurable refresh intervals and decimal or binary units.
 - Local history retained for 24 hours, with a two-minute chart view. No telemetry or monitoring-data uploads.
-- Optional daily background update checks with a quiet settings indicator; verified downloads and installation with rollback.
-- Inspect recorded chart samples by hovering or using Left/Right Arrow keys when focused; Escape dismisses detail and utility windows.
+- Built-in update checks, verified installers, and release notes after upgrades.
 
 ## Install
 
-Requires macOS 12 or later. Releases through 0.1.0-alpha.4 require macOS 13. This is an early preview, ad hoc signed and not notarized by Apple. You do not need Xcode or an Apple Developer membership to use it.
-
-1. Download a DMG from [GitHub Releases](https://github.com/chenmobuys/Neylu/releases): choose `arm64` for Apple Silicon or `x86_64` for Intel.
-2. Open the DMG and drag **Neylu.app** into **Applications**.
-3. Open Neylu from Applications. Its readings appear in the menu bar; there is no Dock icon.
-
-GitHub provides a SHA-256 digest for each release asset. To verify a downloaded installer, compare that digest with the output of:
-
-```sh
-shasum -a 256 Neylu-0.1.0-alpha.2-arm64.dmg
-```
-
-### If macOS prevents the app from opening
-
-First confirm that you downloaded the app from this repository and trust the release. Follow [Apple’s instructions](https://support.apple.com/102445) to allow it in **System Settings → Privacy & Security → Open Anyway**, then confirm the system prompt.
-
-If needed, after moving the app to Applications, you can remove its download-quarantine attribute manually:
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Neylu.app"
-```
-
-This command affects only Neylu. It does not sign or notarize the app, disable Gatekeeper or SIP, or repair a damaged or incompatible download. Downloading or updating the app may require approval again. Do not use it to bypass a warning that the app will damage your computer.
-
-If an older built-in updater is blocked and the alert names `NeyluUpdater`, choose Done and cancel the update. After confirming that you trust the installed Neylu, run the command above and retry. Allowing the main app to run may leave its embedded helper quarantined.
-
-## Use
-
-Click the menu bar readings to open the overview. Right-click them, or use the overview’s **…** button, to open settings. Choose **Menu Bar Items…** to select metrics and reorder them. Settings take effect immediately.
-
-Choose **Check for Updates…** to read the static appcast. Installers remain on GitHub Releases. The app does not call the GitHub REST API or require an account or token. Manual and background checks share in-flight requests and a one-minute metadata cache. **Update Now** downloads and verifies the installer, quits Neylu normally, replaces the app, and relaunches it. If replacement fails or the new app quits during the startup observation period, the previous installation is restored. History and preferences are kept outside the app bundle and remain intact.
-
-If the current location cannot be safely replaced, Neylu opens the verified DMG for manual installation. It does not request administrator privileges or change quarantine attributes on the installed app or downloaded candidate. After verifying the running app and its copied updater, it removes quarantine only from that private helper copy. By default, Neylu checks GitHub once a day in the background without opening a window or downloading an installer. A dot on the settings button and a version label in the menu indicate an available update. Disable **Automatically Check for Updates** to opt out. No GitHub account is required.
-
-The application identifier is `io.github.chenmobuys.Neylu`. Preview builds check for newer previews and stable releases; stable builds check for stable releases only.
-
-## Homebrew
-
-Install from the independent [homebrew-tap](https://github.com/chenmobuys/homebrew-tap). Homebrew selects the installer for your Mac’s architecture. The current release is an Alpha preview, ad hoc signed and not notarized by Apple; the first-launch instructions above still apply. No Apple Developer membership is required.
+Requires **macOS 12 or later**, on Apple Silicon or Intel. Latest downloads are listed in [GitHub Releases](https://github.com/chenmobuys/Neylu/releases).
 
 ```sh
 brew install --cask chenmobuys/tap/neylu
 ```
 
-Homebrew prints first-launch instructions and the `xattr` command after installation. If macOS blocks the app and you trust this release, run the following, then reopen Neylu:
+Or download a DMG: choose `arm64` for Apple Silicon or `x86_64` for Intel, open it, and drag **Neylu.app** into **Applications**. Xcode and an Apple Developer membership are not required to use the app.
+
+## First launch
+
+The current Alpha is ad hoc signed and **not notarized by Apple**. If macOS blocks it, follow [Apple’s instructions](https://support.apple.com/102445) to choose **Open Anyway**. If you trust the downloaded Neylu, you can instead run:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 ```
 
-To install and explicitly remove the download-quarantine attribute in one step (using the default Applications directory):
+Use your actual installation path. This affects only Neylu; it does not disable Gatekeeper or SIP. See [update troubleshooting](docs/UPDATING.en.md) if the alert names `NeyluUpdater`.
 
-```sh
-brew install --cask chenmobuys/tap/neylu &&
-xattr -dr com.apple.quarantine "/Applications/Neylu.app"
-```
+## Use
 
-This affects only Neylu. You can instead use **System Settings → Privacy & Security → Open Anyway**. If you install with `--appdir`, use the actual installation path; Homebrew’s post-installation message shows that path.
+- Left-click the menu bar readings to open the overview; right-click, or use **…**, to open settings.
+- **Menu Bar Items…** selects and reorders metrics; **Appearance** changes the theme; **Preferences** contains refresh interval, units, language, login, and automatic update checks.
+- Hover over charts to inspect samples, or focus a chart and use Left/Right Arrow keys. Press Escape to close details and utility windows.
+- Choose **Check for Updates…**, or update with `brew update && brew upgrade --cask --greedy neylu`.
 
-The fully qualified name identifies the account, tap, and cask. Homebrew 6+ trusts that individual cask when you install it by its full name; afterward, the short name `neylu` can be used.
-Update with `brew update && brew upgrade --cask --greedy neylu`; `--greedy` includes apps with built-in updaters. Uninstall with `brew uninstall --cask neylu`. Adding `--zap` also deletes local history and preferences.
+## Documentation
 
-Successful releases automatically verify and update the cask; no manual pull-request merge is required.
-
-This is a third-party tap, not inclusion in the official Homebrew Cask repository. Downloads are verified against architecture-specific SHA-256 checksums; installation does not remove quarantine attributes automatically.
-
-## Build and contribute
-
-Building requires Xcode 26 or later, including the macOS 26 SDK. The deployment target is macOS 12.
-
-```sh
-./build.sh
-./test-history.sh
-./test-runtime.sh
-./test-updates.sh
-./test-performance.sh # Optional live-sampling and offscreen UI benchmark; not whole-app energy use
-python3 -m unittest discover -s Tests -p 'test_*.py' -v
-```
-
-The app is written to `build/Neylu.app`; runtime tests are built separately. See [contribution guidelines](CONTRIBUTING.md), [release maintenance](docs/RELEASING.md), and the [changelog](CHANGELOG.md).
-
-Temperature readings have been tested on an M3 Max. Other sensor mappings and older macOS versions need further hardware testing. Missing metrics are shown as unavailable rather than zero.
-
-Licensed under the [MIT License](LICENSE). Third-party attributions are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Report security issues privately as described in [SECURITY.md](SECURITY.md).
+- [Updating and troubleshooting](docs/UPDATING.en.md)
+- [Metrics and hardware compatibility — Chinese](docs/METRICS.md)
+- [Build and contribution guide — Chinese](CONTRIBUTING.md)
+- [Release automation — Chinese](docs/RELEASING.md)
+- [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [MIT License](LICENSE) · [Attributions](THIRD_PARTY_NOTICES.md)

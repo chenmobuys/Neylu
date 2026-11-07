@@ -1,0 +1,51 @@
+# 更新与排错
+
+简体中文 · [English](UPDATING.en.md)
+
+## 更新方式
+
+- 在设置中选择「检查更新…」，找到新版后点击「立即更新」。
+- Homebrew 安装的用户可执行 `brew update && brew upgrade --cask --greedy neylu`；`--greedy` 会包含有内置更新器的 App。
+- 也可从 [GitHub Releases](https://github.com/chenmobuys/Neylu/releases) 下载对应芯片的 DMG，退出 Neylu 后手动替换。
+
+默认每天后台检查一次，发现新版后在设置按钮显示提示点，菜单显示版本号；不自动弹窗、不自动下载安装包。可在「偏好设置」关闭「自动检查更新」。正式版只接收正式更新；Alpha、Beta、RC 也接收后续预发布版本。
+
+## 首次打开或更新器被拦截
+
+当前 Alpha 未经 Apple 公证。确认安装包来自本仓库、且你信任该版本后，可按 [Apple 官方说明](https://support.apple.com/zh-cn/102445)通过「系统设置 → 隐私与安全性 → 仍要打开」允许启动。
+
+也可手动处理 Neylu 的下载隔离标记：
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Neylu.app"
+```
+
+如果提示对象是 `NeyluUpdater`，先点「完成」并取消更新，再执行上述命令并重试。修复从 alpha.6 起提供；从旧版升级时仍由旧更新器执行，因此这一次可能仍需手动处理。若 App 安装在其他目录，请修改路径。
+
+这不会关闭 Gatekeeper 或 SIP，也不能修复签名损坏或架构不兼容。若系统明确提示恶意软件会损害电脑，不要用此命令绕过。重新下载或手动更新后，系统可能要求再次批准；组织管理的 Mac 可能不允许自行添加例外。
+
+Homebrew 会打印适配安装路径的中英文首次打开说明，但不会自动执行这条命令。`brew uninstall --cask neylu` 保留本地数据；加 `--zap` 会删除历史与偏好设置。
+
+## 更新检查与安装校验
+
+alpha.5 起，客户端通过架构独立的静态 appcast 检查更新，不访问 GitHub REST API，不需要账号或 Token。手动与后台检查共享一分钟内的缓存和进行中的请求。更早版本仍使用旧接口；遇到限流时可通过 Homebrew 或 DMG 升级。
+
+安装包由 GitHub Releases 提供，校验值由发布工作流核对后写入 appcast。更新器验证 SHA-256、完整版本、架构、最低系统要求、应用标识及代码签名；已有 Developer ID 的安装还约束 Apple 签名链与 Team ID。alpha.6 起，验证已安装 App 及复制后的辅助程序后，仅处理私有暂存辅助程序副本的隔离标记；不修改来源 App、下载的候选应用或其他元数据。
+
+点击「立即更新」后，Neylu 正常退出、替换并重启。替换或启动请求失败，或新版在短暂启动观察期内退出时，会恢复原安装。历史与偏好保存在 App 外，不随替换删除。DMG 内运行、App Translocation 或安装位置不可安全替换时，改为打开已验证 DMG 手动安装，不请求管理员权限。
+
+这些校验不能替代 Apple 公证；当前预发布版的来源信任仍依赖本仓库 GitHub HTTPS 渠道。若想核对手动下载的文件，可将输出与 Release 附件旁的 SHA-256 摘要比较：
+
+```sh
+shasum -a 256 ~/Downloads/Neylu-*.dmg
+```
+
+命令会列出下载目录中匹配的安装包，请核对实际安装的那一份。不会额外发布 SHA-256 文件或 manifest。
+
+## 数据与兼容性
+
+监控数据不上传，无遥测。CPU、GPU、内存、网络历史在 `~/Library/Application Support/Neylu/history.sqlite` 保留 24 小时；目录权限为 0700，数据库及 WAL 为 0600。运行与采样定义见[指标说明](METRICS.md)。
+
+alpha.5 起支持 macOS 12 及以上；更早版本要求 macOS 13。两种架构均有 CI 构建与回归，传感器在 M3 Max 上实际验证；macOS 12 尚未实机验证，其他硬件读数可能不可用。
+
+报告问题时请提供 Neylu 版本、macOS 版本、芯片和错误文字；IP、本机路径等诊断信息请先脱敏。安全问题按[安全反馈](../SECURITY.md)私下报告。

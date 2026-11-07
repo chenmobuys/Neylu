@@ -4,7 +4,7 @@
 
 ## 开发
 
-需要 Apple Silicon Mac、Xcode 26+（含 macOS 26+ SDK），运行最低 macOS 13。
+构建需要能运行 Xcode 26+ 的 Apple Silicon 或 Intel Mac，以及 macOS 26+ SDK；App 的最低运行版本为 macOS 12，两者是不同要求。CI 分别在两种架构的 macOS 26 runner 原生构建与测试。
 
 ```sh
 ./build.sh
@@ -36,3 +36,9 @@ UI 优先使用系统组件、语义颜色和系统材质。应用标识统一�
 用户可见文案统一维护在 `Resources/en.lproj/Localizable.strings` 与 `Resources/zh-Hans.lproj/Localizable.strings`，语言代码使用 BCP 47 标签。使用稳定的语义键（例如 `menu.check_for_updates`、`update.error.integrity_check_failed`），不要用原文句子作键，也不要在窗口或辅助程序中自行分支拼写翻译。
 
 通过 `L("menu.check_for_updates")` 或 `L10n.text` 读取；主程序、关于窗口、更新窗口与辅助程序共用同一资源来源。修改文案后运行本地化测试，校验键集合、命名、格式占位符及全部原生入口。英文应使用 macOS 与系统监控领域的常用术语，并验证切换语言后的实际窗口布局。
+
+## 文档同步
+
+中英文 README 保持相同的信息、功能顺序、安装命令和文档入口；首页面向用户，详细原理放入 docs。最新版本通过 Release 徽标和 VERSION 获取，不在首页写固定版本号。修改运行要求、网络访问、数据保存、安装或更新行为时，同时核对 README、docs/METRICS.md、docs/UPDATING.md、docs/UPDATING.en.md、SECURITY.md 与 docs/RELEASING.md。
+
+`python3 -m unittest discover -s Tests -p 'test_*.py'` 包含文档检查：本地链接和图片、中英文 README 命令与入口、源码最低系统要求及过期版本声明。历史 CHANGELOG 保留各版本当时的行为，不以当前实现覆盖旧记录。未发布改动只写入 Unreleased。

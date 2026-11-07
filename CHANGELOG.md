@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Simplify and align the English and Chinese READMEs, move detailed update guidance to paired documents, correct outdated build/security/metrics instructions, and check documentation links, commands and requirements in CI.
+- 精简并统一中英文 README，将详细更新说明移至成对文档，修正过时的构建、安全与指标说明，并在 CI 检查文档链接、命令和系统要求。
+
+- Avoid automatically focusing the first link or control when utility windows open without a keyboard action; retain native Tab navigation and focus in already-open windows.
+- 工具窗口由鼠标或自动打开时不再默认聚焦第一个链接或控件，保留 Tab 导航及已打开窗口中的焦点。
+
+- Refine chart keyboard focus on macOS 14+: replace the default full-chart halo with a subtle baseline while retaining arrow-key inspection and a stronger indicator for Increase Contrast. macOS 12/13 retain the native focus indicator.
+- 优化 macOS 14+ 的图表聚焦样式：将整块粗框改为轻量底部细线，保留方向键读数，并适配提高对比度；macOS 12/13 保留系统原生焦点提示。
+
 ## [0.1.0-alpha.6] - 2026-11-08
 
 <!-- neylu:en -->

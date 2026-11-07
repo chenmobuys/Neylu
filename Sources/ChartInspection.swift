@@ -30,8 +30,33 @@ struct ChartReadout {
     }
 }
 
+// Keep keyboard focus visible without framing the whole chart like a selected
+// form field. Older systems retain their native focus indicator.
+struct ChartFocusAppearance: ViewModifier {
+    let isFocused: Bool
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content
+                .focusEffectDisabled()
+                .overlay(alignment: .bottom) {
+                    if isFocused {
+                        Rectangle()
+                            .fill(.secondary.opacity(contrast == .increased ? 0.8 : 0.35))
+                            .frame(height: contrast == .increased ? 2 : 1)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
 private struct ChartInspectionModifier: ViewModifier {
     @Binding var date: Date?
+    @FocusState private var isFocused: Bool
     let samples: [Date]
     let window: HistoryWindow
     let readout: ChartReadout?
@@ -73,6 +98,8 @@ private struct ChartInspectionModifier: ViewModifier {
                 })
         }
         .focusable()
+        .focused($isFocused)
+        .modifier(ChartFocusAppearance(isFocused: isFocused))
         .onMoveCommand { direction in
             guard !visible.isEmpty, direction == .left || direction == .right else { return }
             let index = date.flatMap { visible.firstIndex(of: $0) } ?? (direction == .left ? visible.count : -1)

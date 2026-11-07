@@ -6,7 +6,7 @@
 ## 一次性配置
 
 1. 创建公开 GitHub 仓库 `chenmobuys/Neylu`，默认分支 `main`，把本目录作为仓库根目录。
-2. Settings → Actions → General：允许 Actions；Workflow permissions 保持 read-only，勾选允许 GitHub Actions 创建 PR。各工作流按 job 单独申请写权限。
+2. Settings → Actions → General：允许 Actions；Workflow permissions 保持 read-only，无需开启 Actions 创建 PR；当前发布直接同步专用 tap，未使用自动 PR。各工作流按 job 单独申请写权限。
 3. 创建名为 `release` 的 Environment。未来的签名 Secrets 放在此环境，不提交进仓库。可以按需要设置 required reviewers。
 4. 启用 Issues、Security → Private vulnerability reporting。可给 main 设置要求 CI 通过的分支保护。
 5. 查看 Actions 的首次 CI，确认 macOS 26 runner / Xcode 26+ 可用。工作流使用固定提交 SHA，Dependabot 每周检查 Actions 更新。
@@ -28,7 +28,7 @@ DMG 挂载卷通过硬链接将 App 图标作为 `.VolumeIcon.icns`，不复制�
 原生运行回归由独立 `./test-runtime.sh` 执行，不编入发布 App；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
 最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 12 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
 后续公开附件只有两份 DMG 安装映像；不上传独立 SHA-256 文件或 manifest。GitHub 自动生成附件摘要，发布后工作流将其与本地最终 DMG 的大小和 SHA-256 逐一核对。Release notes 来自 CHANGELOG 中与完整版本精确匹配的章节。
-Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；不提供绕过 Gatekeeper 的脚本。
+Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；首次打开的手动确认方式见 README；安装脚本和 Cask 不自动删除隔离标记。更新器仅处理已验证辅助程序的私有副本，边界见 SECURITY.md。
 
 ## 正式版：有 Developer ID 后启用
 
@@ -63,7 +63,7 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 
 1. 使用本仓库临时 `GITHUB_TOKEN` 读取已公开 Release，下载 ARM / Intel 两份最终 DMG，并复核 GitHub SHA-256、实际大小和仓库下载地址。
 2. 从对应 tag 的 `BUILD_NUMBER` 读取构建号、`build.sh` 读取最低系统要求，`scripts/appcast.py` 生成 RSS/Sparkle 命名空间的架构独立订阅，保留各最近十个正式版及测试版。
-3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml`，不修改源码分支或 Release 附件。同版本校验值、大小和构建号变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
+3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml`，不修改源码分支或 Release 附件。同版本校验值、大小、构建号或最低系统要求变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
 4. 客户端通过 GitHub 静态内容服务读取固定 HTTPS 地址，不访问 REST API：
    - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-arm64.xml
    - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-x86_64.xml
@@ -102,8 +102,12 @@ Homebrew 工作流的 `GITHUB_TOKEN` 仅具有读取权限，无法跨仓库写�
 同步全局串行；过期 tag 不会覆盖较新版本。tap main 若启用必须 PR 的分支规则，需为发布自动化明确配置允许直接更新的规则，否则推送会失败。
 
 
-不要添加 `sha256 :no_check`、quarantine 删除或 Gatekeeper 绕过步骤。
+不要在 Homebrew Cask 或安装自动化中添加 `sha256 :no_check`、自动删除 quarantine 或关闭 Gatekeeper 的步骤；这与已验证更新辅助程序私有副本的处理是两个不同范围。
 自有 tap 不等于官方收录；未公证 Alpha 首次打开仍按 README 的系统确认步骤操作。
+
+## 发布前文档核对
+
+README.md 与 README.en.md 保持相同的功能和命令，不写固定的“当前版本”号；版本以 VERSION、Release 徽标和实际公开安装包为准。核对 CONTRIBUTING.md 的构建 SDK/运行要求、SECURITY.md 的网络与信任边界、docs/METRICS.md 的采样定义、两份 UPDATING 文档的安装和排错步骤。更新中英文 CHANGELOG 对应版本，保留历史章节原貌。Python 测试会验证本地链接、首页命令与入口一致性及最低系统要求。
 
 ## 本地检查
 
@@ -116,10 +120,10 @@ python3 -m unittest discover -s Tests -p 'test_*.py' -v
 ./test-runtime.sh
 python3 scripts/release.py validate --tag v$(cat VERSION)
 python3 scripts/release.py package --app build/Neylu.app --output dist \
-  --arch arm64 --tag v$(cat VERSION)
+  --arch "$(uname -m)" --tag v$(cat VERSION)
 ```
 
-本地打包后运行 `python3 scripts/release.py verify-assets --tag v$(cat VERSION) --output dist --arch arm64` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
+本地打包后运行 `python3 scripts/release.py verify-assets --tag v$(cat VERSION) --output dist --arch "$(uname -m)"` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
 
 更新器的真实 GitHub 下载回归可运行 `./test-updates.sh --live-update`；在有 GUI 会话的 Mac 上运行 `./test-updates.sh --integration`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
 
