@@ -5,6 +5,39 @@
     <link>https://github.com/chenmobuys/Neylu</link>
     <description>Neylu stable and preview releases</description>
     <item>
+      <title>Neylu 0.1.0-alpha.6</title>
+      <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.6</link>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-alpha.6</sparkle:shortVersionString>
+      <sparkle:channel>alpha</sparkle:channel>
+      <sparkle:minimumSystemVersion>12.0.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 07 Nov 2026 16:31:49 GMT</pubDate>
+      <description>&gt; 早期测试版：仅 ad-hoc 签名，未经 Apple 公证；首次打开请参阅 README。
+
+&lt;!-- neylu:en --&gt;
+### English
+
+- **Update helper launch fix:** Fix Gatekeeper blocking `NeyluUpdater` after it is copied from a previously approved installation to the private staging directory. Verify the installed app’s signature and nested code, confirm the copied helper’s contents and signature, then remove quarantine only from that helper copy. Leave the installed app, downloaded candidate, and unrelated metadata unchanged.
+- **Update safety checks:** Preserve installer checksums, version and architecture checks, signing identity checks, and replacement rollback. Add regression coverage for inherited quarantine, helper execution, tampered source apps, symbolic links, and existing staging files; make the shared-request cancellation test independent of response timing.
+
+When upgrading from alpha.5 or earlier, the old updater still runs until this version is installed. If macOS blocks `NeyluUpdater`, cancel the update and follow the README’s quarantine instructions before retrying, or install this release using the DMG or Homebrew.
+
+This preview is ad hoc signed and is not notarized by Apple. First-launch approval may still be required. Requires macOS 12 or later; macOS 12 has not yet been tested on a physical device.
+
+&lt;!-- neylu:zh-Hans --&gt;
+### 中文
+
+- **修复更新器启动被拦截：** 修复从已允许运行的安装中，将 `NeyluUpdater` 复制到私有暂存目录后再次被 Gatekeeper 拦截的问题。先验证已安装 App 的签名与内嵌代码，再核对复制后辅助程序的内容与签名，仅处理该辅助程序副本的隔离标记；不修改已安装 App、下载的候选应用或其他元数据。
+- **保留更新安全校验：** 继续验证安装包校验值、版本、架构与签名身份，并保留替换失败回滚。补充隔离标记继承、辅助程序执行、来源篡改、符号链接及暂存文件防覆盖测试；共享请求的取消测试不再依赖响应延时。
+
+从 alpha.5 或更早版本升级时，安装本版前仍由旧更新器执行。若系统拦截 `NeyluUpdater`，请取消更新，按 README 的隔离标记处理说明操作后重试；也可通过 DMG 或 Homebrew 安装本版。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证，首次运行仍可能需要手动允许。要求 macOS 12 及以上；macOS 12 尚未完成实机验证。
+</description>
+      <neylu:sha256>8a81e218f04fc57f0f49351a8a30ee903842ba359b357e4b0d90f84325bf18d5</neylu:sha256>
+      <enclosure url="https://github.com/chenmobuys/Neylu/releases/download/v0.1.0-alpha.6/Neylu-0.1.0-alpha.6-x86_64.dmg" length="433124" type="application/x-apple-diskimage" />
+    </item>
+    <item>
       <title>Neylu 0.1.0-alpha.5</title>
       <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.5</link>
       <sparkle:version>5</sparkle:version>
