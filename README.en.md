@@ -65,6 +65,21 @@ Install from the independent [homebrew-tap](https://github.com/chenmobuys/homebr
 brew install --cask chenmobuys/tap/neylu
 ```
 
+Homebrew prints first-launch instructions and the `xattr` command after installation. If macOS blocks the app and you trust this release, run the following, then reopen Neylu:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Neylu.app"
+```
+
+To install and explicitly remove the download-quarantine attribute in one step (using the default Applications directory):
+
+```sh
+brew install --cask chenmobuys/tap/neylu &&
+xattr -dr com.apple.quarantine "/Applications/Neylu.app"
+```
+
+This affects only Neylu. You can instead use **System Settings → Privacy & Security → Open Anyway**. If you install with `--appdir`, use the actual installation path; Homebrew’s post-installation message shows that path.
+
 The fully qualified name identifies the account, tap, and cask. Homebrew 6+ trusts that individual cask when you install it by its full name; afterward, the short name `neylu` can be used.
 Update with `brew update && brew upgrade --cask --greedy neylu`; `--greedy` includes apps with built-in updaters. Uninstall with `brew uninstall --cask neylu`. Adding `--zap` also deletes local history and preferences.
 

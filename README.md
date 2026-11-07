@@ -120,6 +120,21 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 brew install --cask chenmobuys/tap/neylu
 ```
 
+安装完成后，Homebrew 会直接打印首次打开说明和 `xattr` 命令。若 macOS 拦截启动，确认信任此版本后执行，再重新打开 Neylu：
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Neylu.app"
+```
+
+也可以一次复制以下命令，安装成功后由你主动允许首次打开（默认安装到「应用程序」）：
+
+```sh
+brew install --cask chenmobuys/tap/neylu &&
+xattr -dr com.apple.quarantine "/Applications/Neylu.app"
+```
+
+这只移除 Neylu 的下载隔离标记；也可通过「系统设置 → 隐私与安全性 → 仍要打开」允许启动。若使用了 `--appdir`，请将路径改为实际安装位置；安装后的提示会使用所选路径。
+
 完整名称依次为「账号 / tap / 软件名」。Homebrew 6+ 首次安装会据此信任这一项 Cask；安装后可简写为 `brew install --cask neylu`。
 升级：`brew update && brew upgrade --cask --greedy neylu`。`--greedy` 用于包含内置更新功能的 App。
 普通卸载保留历史与偏好：`brew uninstall --cask neylu`。

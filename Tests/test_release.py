@@ -80,8 +80,12 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn('cask "neylu"', text)
             self.assertIn('auto_updates true', text)
             self.assertNotIn('no_check', text)
-            self.assertNotIn('xattr', text)
-            self.assertNotIn('quarantine', text)
+            definition, caveats = text.split('  caveats <<~EOS', 1)
+            self.assertNotIn('xattr', definition)
+            self.assertNotIn('quarantine', definition)
+            self.assertIn('xattr -dr com.apple.quarantine "#{appdir}/Neylu.app"', caveats)
+            self.assertNotIn('postflight', text)
+            self.assertNotIn('system_command', text)
         for version in ['0.1.0-preview.1', '../0.1.0', '0.1.0-alpha.0']:
             with self.assertRaises(ValueError):
                 release.cask_text('owner/Neylu', version, digests, allow_prerelease=True)

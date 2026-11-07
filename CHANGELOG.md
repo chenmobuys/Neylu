@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 补充中英文 Homebrew 首次启动说明和一条命令完成安装及手动放行的方式；安装完成后直接显示适配实际安装路径的 `xattr` 提示，不自动执行。
+- Document first-launch approval in English and Chinese, with a combined install command. Homebrew now prints the `xattr` instructions using the actual installation path without running them automatically.
+
 ## [0.1.0-alpha.1] - 2026-11-07
 
 <!-- neylu:en -->
