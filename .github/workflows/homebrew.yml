@@ -1,0 +1,77 @@
+name: Homebrew
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag to synchronize, e.g. v0.1.0-alpha.1'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: homebrew-tap-publish
+  cancel-in-progress: false
+jobs:
+  synchronize:
+    name: Update independent Homebrew tap
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download published installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: chenmobuys/Neylu
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - "$RELEASE_TAG" <<'PY'
+          import re, sys
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?', sys.argv[1]):
+              raise SystemExit('Invalid release tag')
+          PY
+          mkdir -p .build/published
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > .build/published-release.json
+          gh release download "$RELEASE_TAG" --dir .build/published --pattern 'Neylu-*.dmg'
+          # Validate the public release before making the deployment key available.
+          python3 scripts/update-tap.py --tag "$RELEASE_TAG" --assets .build/published \
+            --metadata .build/published-release.json --tap .build/verified-tap
+      - name: Check deployment credential
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$TAP_KEY" ]; then
+            echo 'Configure HOMEBREW_TAP_DEPLOY_KEY in the release environment.' >&2
+            exit 1
+          fi
+      - name: Check out independent tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: chenmobuys/homebrew-tap
+          ref: main
+          path: homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          persist-credentials: true
+      - name: Verify and publish cask
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 scripts/update-tap.py --tag "$RELEASE_TAG" --assets .build/published \
+            --metadata .build/published-release.json --tap homebrew-tap
+          cd homebrew-tap
+          if git diff --quiet -- Casks/neylu.rb && [ -z "$(git ls-files --others --exclude-standard Casks/neylu.rb)" ]; then
+            echo 'No tap update needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Casks/neylu.rb
+          git commit -m "chore: 更新 Neylu $RELEASE_TAG 的 Homebrew 安装配置"
+          git push origin HEAD:main

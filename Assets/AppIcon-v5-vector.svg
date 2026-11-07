@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" fill="none">
+<title>Neylu — editable vector reconstruction</title>
+<desc>Reconstructed from the approved raster. Curves, anti-aliasing and background shading may differ slightly.</desc>
+<defs>
+ <radialGradient id="tile" cx=".44" cy=".42" r=".76"><stop stop-color="#12182b"/><stop offset="1" stop-color="#0e1425"/></radialGradient>
+ <linearGradient id="trace" x1="184" y1="600" x2="1071" y2="600" gradientUnits="userSpaceOnUse"><stop stop-color="#0aa7f4"/><stop offset=".55" stop-color="#22c3e9"/><stop offset="1" stop-color="#3cdce5"/></linearGradient>
+</defs>
+<g id="background"><path fill="url(#tile)" d="M355 96H886C1058 96 1160 196 1160 366V889C1160 1060 1062 1158 891 1158H353C182 1158 82 1060 82 888V367C82 197 182 96 355 96Z"/></g>
+<g id="guides" stroke="#2b344b" stroke-width="2" opacity=".85">
+ <path d="M220 275H1035"/><path d="M220 388H1035"/><path d="M220 501H1035"/><path d="M220 615H1035"/><path d="M220 729H1035"/><path d="M220 843H1035"/><path d="M220 958H1035"/>
+</g>
+<g id="monitor-trace"><path d="M185 716L265 560H340L400 660H475L525 597H590L670 775L755 583H805L870 413L950 679H995L1071 528" stroke="url(#trace)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>

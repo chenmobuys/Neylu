@@ -1,0 +1,22 @@
+.DS_Store
+._*
+.build/
+build/
+dist/
+*.app/
+*.dSYM/
+*.p12
+*.p8
+*.keychain-db
+.env
+.env.*
+!.env.example
+__pycache__/
+# Historical design studies and raster exports are retained locally only.
+Design/
+Assets/*.png
+Assets/*.icns
+Assets/*-exact.svg
+Assets/Icon-*-prompt.txt
+Assets/AppIcon-v5-README.txt
+Assets/make-icon.swift

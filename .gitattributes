@@ -1,0 +1,7 @@
+* text=auto
+*.sh text eol=lf
+*.swift text eol=lf
+*.svg text eol=lf
+*.png binary
+*.icns binary
+Design/ export-ignore

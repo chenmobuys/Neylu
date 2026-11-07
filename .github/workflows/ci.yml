@@ -1,0 +1,58 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    name: Build and test (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            arch: arm64
+          - runner: macos-26-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate shell scripts
+        run: bash -n build.sh test-history.sh test-runtime.sh test-updates.sh scripts/sign-and-notarize.sh
+      - name: Release tooling tests
+        run: python3 -m unittest discover -s Tests -p 'test_*.py' -v
+      - name: History tests
+        run: ./test-history.sh
+      - name: Build
+        run: ./build.sh
+      - name: Update tests
+        run: ./test-updates.sh
+      - name: Runtime smoke test
+        run: ./test-runtime.sh
+      - name: Verify bundle
+        run: |
+          codesign --verify --strict build/Neylu.app
+          plutil -lint build/Neylu.app/Contents/Info.plist
+          test "$(lipo -archs build/Neylu.app/Contents/MacOS/Neylu)" = "${{ matrix.arch }}"
+      - name: Package and verify DMG volume icon
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          release_tag="v$(cat VERSION)"
+          python3 scripts/release.py package --tag "$release_tag" --arch "$BUILD_ARCH" --app build/Neylu.app --output dist --ci-build
+          python3 scripts/release.py verify-assets --tag "$release_tag" --arch "$BUILD_ARCH" --output dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Neylu-CI-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

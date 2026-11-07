@@ -1,0 +1,21 @@
+name: 问题反馈
+description: 报告异常或错误的读数
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: Neylu 版本、macOS 版本和芯片型号
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤及预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或诊断信息（可选）
+      description: 请先遮盖 IP、用户名、路径等个人信息。

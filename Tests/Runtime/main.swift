@@ -1,0 +1,440 @@
+import AppKit
+import SwiftUI
+import ServiceManagement
+
+L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
+
+if CommandLine.arguments.contains("--self-test") {
+    let recoveryModel = MonitorModel(persistHistory: false)
+    recoveryModel.historySaveFailed("disk full")
+    precondition(recoveryModel.error != nil)
+    recoveryModel.historySaveRecovered()
+    precondition(recoveryModel.error == nil)
+    recoveryModel.historySaveFailed("disk full")
+    recoveryModel.error = "unrelated settings error"
+    recoveryModel.historySaveRecovered()
+    precondition(recoveryModel.error == "unrelated settings error")
+    print("PASS: history recovery clears only its own stale error without hiding unrelated failures")
+    let resizeGate = StatusItemResizeGate(interval: 0.005)
+    var resizeRequests = 0, staleReveal = 0, latestReveal = 0, geometryReads = 0
+    var displayedImage = "old"
+    resizeGate.begin(resize: { resizeRequests += 1 },
+                     geometry: { [] }, reveal: { staleReveal += 1 })
+    resizeGate.begin(resize: { resizeRequests += 1 }, geometry: {
+        precondition(displayedImage == "old")
+        precondition(resizeGate.isActive)
+        geometryReads += 1
+        // Two quiet frames followed by another system move must not reveal early.
+        return [NSRect(x: geometryReads <= 3 ? 10 : 20, y: 0, width: 100, height: 22)]
+    }, reveal: {
+        precondition(!resizeGate.isActive && geometryReads >= 7)
+        displayedImage = "new"
+        latestReveal += 1
+    })
+    let resizeDeadline = Date().addingTimeInterval(3)
+    while latestReveal == 0 && Date() < resizeDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+    precondition(displayedImage == "new" && resizeRequests == 2 && staleReveal == 0 && latestReveal == 1)
+    resizeGate.begin(resize: { resizeRequests += 1 }, geometry: { [] }, reveal: { staleReveal += 1 })
+    resizeGate.cancel()
+    RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+    precondition(!resizeGate.isActive && resizeRequests == 3 && staleReveal == 0)
+    print("PASS: menu bar expansion retains its old image through renewed movement, cancels stale transitions and switches only after geometry settles")
+    var allocationPolls = 0
+    var allocationRevealed = false
+    resizeGate.begin(resize: {}, geometry: { [] }, refresh: { allocationPolls += 1 },
+                     ready: { allocationPolls >= 7 }, reveal: {
+        precondition(allocationPolls >= 7)
+        allocationRevealed = true
+    })
+    let allocationDeadline = Date().addingTimeInterval(3)
+    while !allocationRevealed && Date() < allocationDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+    precondition(allocationRevealed)
+    print("PASS: quiet geometry cannot reveal the pending layout until its target allocation is ready")
+    final class SlowTestSampler: MetricSampling {
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        var blockNext = true
+        var calls = 0
+        var resets = 0
+        var diskRefreshes = 0
+        func sample() -> Reading {
+            precondition(!Thread.isMainThread)
+            calls += 1
+            if blockNext {
+                blockNext = false
+                entered.signal()
+                precondition(release.wait(timeout: .now() + 5) == .success)
+            }
+            return Reading(cpu: Double(calls), cpuReady: true)
+        }
+        func resetAfterWake() { precondition(!Thread.isMainThread); resets += 1 }
+        func refreshDisks(into reading: inout Reading) {
+            precondition(!Thread.isMainThread)
+            diskRefreshes += 1
+            reading.diskName = "Fresh disk"
+        }
+    }
+    func pumpMain(until condition: () -> Bool) {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(condition())
+    }
+    let slowSampler = SlowTestSampler()
+    let service = SamplingService(makeSampler: { precondition(!Thread.isMainThread); return slowSampler })
+    var deliveries: [(Reading, Bool)] = []
+    var diskDeliveries = 0
+    service.onSample = { reading, _, record in precondition(Thread.isMainThread); deliveries.append((reading, record)) }
+    service.onDisks = { _ in precondition(Thread.isMainThread); diskDeliveries += 1 }
+    service.sample()
+    precondition(slowSampler.entered.wait(timeout: .now() + 3) == .success)
+    var mainResponded = false
+    DispatchQueue.main.async { mainResponded = true }
+    pumpMain { mainResponded } // The worker remains blocked while main handles input/work.
+    for _ in 0..<20 { service.sample(recordHistory: true) }
+    slowSampler.release.signal()
+    pumpMain { deliveries.count == 2 }
+    precondition(slowSampler.calls == 2 && deliveries[1].1)
+    slowSampler.blockNext = true
+    service.sample(recordHistory: true)
+    precondition(slowSampler.entered.wait(timeout: .now() + 3) == .success)
+    for _ in 0..<20 { service.refreshDisks() }
+    service.suspend()
+    service.resumeAfterWake()
+    slowSampler.release.signal()
+    pumpMain { deliveries.count == 3 }
+    precondition(slowSampler.calls == 4 && slowSampler.resets == 1)
+    precondition(deliveries.last!.0.cpu == 4 && !deliveries.last!.1)
+    precondition(deliveries.last!.0.diskName == "Fresh disk" && slowSampler.diskRefreshes == 1)
+    service.refreshDisks()
+    pumpMain { diskDeliveries == 1 }
+    precondition(slowSampler.diskRefreshes == 2)
+    service.suspend()
+    print("PASS: blocked sampling leaves main responsive, requests coalesce, callbacks use main, stale sleep results are discarded and disk events survive wake")
+    for generation in 1...5 {
+        let profile = CPUTemperatureProfile.forModel("Apple M\(generation) Max")!
+        precondition(!profile.keys.isEmpty && profile.averagesSensors)
+    }
+    precondition(CPUTemperatureProfile.forModel("Apple M10") == nil)
+    precondition(CPUTemperatureProfile.forModel("Unknown") == nil)
+    precondition(CPUTemperatureProfile.forModel("Intel(R) Core(TM) i7")?.keys.contains("Tp0P") == false)
+    precondition(CPUTemperatureProfile.forModel("Apple M1")?.keys.contains("Tp0P") == true)
+    precondition(CPUTemperatureReader.decode([0x32, 0x80], type: 0x73703738) == 50.5)
+    precondition(CPUTemperatureReader.decode([0, 0, 0x48, 0x42], type: 0x666c7420) == 50)
+    precondition(CPUTemperatureReader.decode([0, 0, 0xc0, 0x7f], type: 0x666c7420) == nil)
+    precondition(CPUTemperatureReader.decode([0xff, 0], type: 0x73703738) == nil)
+    precondition(CPUTemperatureReader.decode([0], type: 0x73703738) == nil)
+    precondition(CPUTemperatureReader(model: "Unknown").read(now: 0) == nil)
+    print("PASS: generation-specific Intel/M1–M5 temperature mappings, unsupported models and invalid sensor payloads")
+    var partialGPUReading = Reading()
+    applyGPUStatistics(["Device Utilization %": 45, "Tiler Utilization %": 0], to: &partialGPUReading)
+    precondition(partialGPUReading.gpuReady && partialGPUReading.gpuRenderer == nil && partialGPUReading.gpuTiler == 0)
+    applyGPUStatistics(["Device Utilization %": Double.nan, "Renderer Utilization %": true], to: &partialGPUReading)
+    precondition(!partialGPUReading.gpuReady && partialGPUReading.gpuRenderer == nil && partialGPUReading.gpuTiler == nil)
+    print("PASS: missing/invalid GPU counters are distinct from actual zero utilization")
+    precondition(preferredNetworkAddress([]) == "—")
+    precondition(preferredNetworkAddress([""]) == "—")
+    precondition(preferredNetworkAddress(["2001:db8::12", "192.0.2.1"]) == "192.0.2.1")
+    precondition(preferredNetworkAddress(["fe80::1%en0", "2001:db8::12"]) == "2001:db8::12")
+    precondition(preferredNetworkAddress(["fe80::1%en0", "febf::1", "invalid"]) == "—")
+    precondition(preferredNetworkAddress(["fd12:3456::1"]) == "fd12:3456::1")
+    print("PASS: IPv4 preference, IPv6 fallback and link-local address filtering")
+    let appearanceSuite = "NeyluAppearanceTest-" + UUID().uuidString
+    let appearanceDefaults = UserDefaults(suiteName: appearanceSuite)!
+    precondition(AppearanceMode.load(from: appearanceDefaults) == .automatic)
+    precondition(AppearanceMode.allCases == [.automatic, .light, .dark])
+    for mode in AppearanceMode.allCases {
+        mode.save(to: appearanceDefaults)
+        precondition(AppearanceMode.load(from: UserDefaults(suiteName: appearanceSuite)!) == mode)
+    }
+    appearanceDefaults.set("unknown-future-mode", forKey: "appearanceMode")
+    precondition(AppearanceMode.load(from: appearanceDefaults) == .automatic)
+    precondition(AppearanceMode.automatic.appKitAppearance == nil)
+    precondition(AppearanceMode.light.appKitAppearance?.name == .aqua)
+    precondition(AppearanceMode.dark.appKitAppearance?.name == .darkAqua)
+    precondition(AppLanguage.load(from: appearanceDefaults) == .automatic)
+    precondition(AppLanguage.allCases == [.automatic, .simplifiedChinese, .english])
+    precondition(AppLanguage.automatic.resolved(preferredLanguages: ["zh-Hans-CN", "en"]) == .simplifiedChinese)
+    precondition(AppLanguage.automatic.resolved(preferredLanguages: ["en-US", "zh-Hans"]) == .english)
+    precondition(AppLanguage.automatic.resolved(preferredLanguages: ["fr-FR"]) == .english)
+    precondition(AppLanguage.automatic.resolved(preferredLanguages: []) == .english)
+    precondition(AppLanguage.english.resolved(preferredLanguages: ["zh-Hans"]) == .english)
+    for language in AppLanguage.allCases {
+        language.save(to: appearanceDefaults)
+        precondition(AppLanguage.load(from: UserDefaults(suiteName: appearanceSuite)!) == language)
+    }
+    appearanceDefaults.set("unsupported", forKey: "appLanguage")
+    precondition(AppLanguage.load(from: appearanceDefaults) == .automatic)
+    precondition(L10n.text("overview.title", language: .english) == "System Overview")
+    precondition(L10n.text("overview.title", language: .simplifiedChinese) == "系统概览")
+    precondition(L10n.uptime(minutes: 1501, language: .english) == "Uptime: 1d 1h 1m")
+    precondition(L10n.uptime(minutes: 61, language: .simplifiedChinese) == "开机时间：1 小时 1 分钟")
+    precondition(L10n.uptime(minutes: nil, language: .english) == "Uptime: —")
+    print("PASS: language defaults/order, system resolution, preference persistence, translations and uptime formatting")
+    precondition(MenuBarConfiguration.load(from: appearanceDefaults) == .defaults)
+    precondition(MenuBarConfiguration.defaults.visibleMetrics == [.network, .memory, .gpu, .cpu])
+    var menuLayout = MenuBarConfiguration.defaults
+    menuLayout.setEnabled(true, for: .gpu)
+    menuLayout.setEnabled(false, for: .memory)
+    menuLayout.move(.gpu, to: 0)
+    menuLayout.save(to: appearanceDefaults)
+    precondition(MenuBarConfiguration.load(from: UserDefaults(suiteName: appearanceSuite)!) == menuLayout)
+    precondition(menuLayout.visibleMetrics == [.gpu, .network, .cpu])
+    menuLayout.move(.gpu, to: 5)
+    precondition(menuLayout.visibleMetrics == [.network, .cpu, .gpu])
+    let normalized = MenuBarConfiguration(items: [MenuBarItem(metric: .cpu, enabled: true), MenuBarItem(metric: .cpu, enabled: false)])
+    precondition(normalized.items.count == 5 && normalized.visibleMetrics == [.cpu])
+    appearanceDefaults.set([["metric": "unknown", "enabled": true], ["metric": "gpu", "enabled": true]], forKey: "menuBarItems")
+    precondition(MenuBarConfiguration.load(from: appearanceDefaults).visibleMetrics == [.gpu])
+    appearanceDefaults.set("invalid", forKey: "menuBarItems")
+    precondition(MenuBarConfiguration.load(from: appearanceDefaults) == .defaults)
+    var hiddenLayout = MenuBarConfiguration.defaults
+    for metric in MenuBarMetric.allCases { hiddenLayout.setEnabled(false, for: metric) }
+    hiddenLayout.save(to: appearanceDefaults)
+    precondition(MenuBarConfiguration.load(from: appearanceDefaults).visibleMetrics.isEmpty)
+    precondition(MeterView.meterWidth(for: .decimal, configuration: hiddenLayout) == 20)
+    let testMeter = MeterView(frame: .zero)
+    testMeter.reading = Reading(cpu: 100, gpu: 100, gpuReady: true, diskTotal: 1000, diskFree: 0, diskReady: true,
+                                memory: 100, download: 999_000_000_000, upload: 999_000_000_000, cpuReady: true, networkReady: true, memoryReady: true)
+    func permutations(_ items: [MenuBarMetric]) -> [[MenuBarMetric]] {
+        guard !items.isEmpty else { return [[]] }
+        return items.flatMap { first in permutations(items.filter { $0 != first }).map { [first] + $0 } }
+    }
+    let rateAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)]
+    for basis in UnitBasis.allCases {
+        for exponent in 1...4 {
+            for mantissa in [0.0, 9.95, 9.999, 999.0] {
+                let rate = formattedRate(mantissa * pow(basis.radix, Double(exponent)), basis: basis)
+                precondition(ceil((rate as NSString).size(withAttributes: rateAttributes).width) <= MeterView.rateWidth(for: basis))
+            }
+        }
+    }
+    for order in permutations(MenuBarMetric.allCases) {
+        testMeter.configuration = MenuBarConfiguration(items: order.map { MenuBarItem(metric: $0, enabled: true) })
+        for basis in UnitBasis.allCases {
+            testMeter.basis = basis
+            let image = testMeter.makeStatusImage()
+            precondition(image.size.width == MeterView.meterWidth(for: basis, configuration: testMeter.configuration))
+            precondition(image.representations.count == 2)
+            precondition(image.isTemplate)
+        }
+    }
+    testMeter.reading = Reading(cpu: 73, memory: 61, cpuReady: true, memoryReady: true)
+    testMeter.configuration = MenuBarConfiguration(items: [.memory, .cpu].map { MenuBarItem(metric: $0, enabled: true) })
+    _ = NSApplication.shared
+    NSApp.setActivationPolicy(.accessory)
+    let originalArgumentDomain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+    let appBundle = Bundle(url: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/Neylu.app"))!
+    let aboutController = AboutController(settings: MonitorSettings(), bundle: appBundle)
+    func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }
+    for language in [AppLanguage.english, .simplifiedChinese] {
+        UserDefaults.standard.setVolatileDomain(originalArgumentDomain.merging(["appLanguage": language.rawValue]) { _, new in new }, forName: UserDefaults.argumentDomain)
+        aboutController.refreshText()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        aboutController.window!.contentView!.layoutSubtreeIfNeeded()
+        let views = allViews(aboutController.window!.contentView!)
+        let text = views.compactMap { ($0 as? NSTextField)?.stringValue }
+        let buttons = views.compactMap { ($0 as? NSButton)?.title }
+        precondition(aboutController.window!.title == L10n.text("about.title", language: language))
+        precondition(text.contains(L10n.text("app.description", language: language)))
+        precondition(buttons.contains(L10n.text("about.license", language: language)))
+        if language == .english {
+            precondition(text.allSatisfy { $0.range(of: #"[\u4e00-\u9fff]"#, options: .regularExpression) == nil })
+            precondition(text.contains { $0.hasPrefix("Version 0.1.0-alpha.") && $0.contains("Build ") })
+        }
+    }
+    UserDefaults.standard.setVolatileDomain(originalArgumentDomain, forName: UserDefaults.argumentDomain)
+    print("PASS: the same native About window switches all owned labels between English and Simplified Chinese")
+
+    for basis in UnitBasis.allCases {
+        testMeter.basis = basis
+        let source = testMeter.makeStatusImage()
+        let mask = StatusImageMask(image: source, contentWidth: source.size.width)
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.accessory)
+        let nativeButton = NSStatusBarButton(frame: NSRect(x: 0, y: 0, width: source.size.width, height: source.size.height))
+        nativeButton.imagePosition = .imageOnly
+        nativeButton.imageScaling = .scaleNone
+        nativeButton.clipsToBounds = true
+        // Exercise contraction as well as expansion with the actual native cell.
+        for extra: CGFloat in [68, 34, 0, 34, 68, 0] {
+            nativeButton.frame.size.width = source.size.width + extra
+            let result = mask.render(in: nativeButton.bounds.size)
+            nativeButton.image = result
+            let actualRect = nativeButton.cell!.imageRect(forBounds: nativeButton.bounds)
+            precondition(abs(actualRect.minX - nativeButton.bounds.minX) < 0.5)
+            precondition(actualRect.width == nativeButton.bounds.width)
+            precondition(result.size == nativeButton.bounds.size && result.isTemplate == source.isTemplate)
+            for (before, after) in zip(source.representations, result.representations) {
+                let original = before as! NSBitmapImageRep, masked = after as! NSBitmapImageRep
+                var ink = 0
+                for x in 0..<masked.pixelsWide {
+                    for y in 0..<masked.pixelsHigh {
+                        let expected = x < original.pixelsWide ? original.colorAt(x: x, y: y)!.alphaComponent : 0
+                        let actual = masked.colorAt(x: x, y: y)!.alphaComponent
+                        precondition(actual == expected)
+                        if actual > 0 { ink += 1 }
+                    }
+                }
+                precondition(ink > 0)
+            }
+        }
+    }
+    print("PASS: actual native status cell stays at x=0 through expansion/contraction; 1x/2x content pixels remain fixed at the left with a transparent tail")
+    let alignmentSource = NSImage(size: NSSize(width: 64, height: 22), flipped: false) { rect in
+        NSColor.blue.setFill(); rect.fill(); return true
+    }
+    let alignmentButton = NSStatusBarButton(frame: NSRect(x: 0, y: 0, width: 180, height: 24))
+    alignmentButton.title = ""
+    alignmentButton.isBordered = false
+    alignmentButton.imagePosition = .imageOnly
+    alignmentButton.imageScaling = .scaleNone
+    alignmentButton.contentTintColor = nil
+    alignmentButton.image = alignmentSource
+    precondition(alignmentButton.cell!.imageRect(forBounds: alignmentButton.bounds).minX == 58)
+    let alignmentMask = StatusImageMask(image: alignmentSource, contentWidth: 64)
+    alignmentButton.image = alignmentMask.render(in: alignmentButton.bounds.size)
+    alignmentButton.postsFrameChangedNotifications = true
+    let alignmentObserver = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: alignmentButton, queue: nil) { _ in
+        alignmentButton.image = alignmentMask.render(in: alignmentButton.bounds.size)
+    }
+    for width: CGFloat in [180, 140, 100, 64, 48, 100, 180] {
+        alignmentButton.frame.size.width = width
+        precondition(alignmentButton.image!.size == alignmentButton.bounds.size)
+        let bitmap = alignmentButton.bitmapImageRepForCachingDisplay(in: alignmentButton.bounds)!
+        alignmentButton.cacheDisplay(in: alignmentButton.bounds, to: bitmap)
+        var left = bitmap.pixelsWide, right = -1
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh {
+                let color = bitmap.colorAt(x: x, y: y)!.usingColorSpace(.deviceRGB)!
+                if color.blueComponent > 0.8 && color.redComponent < 0.2 && color.alphaComponent > 0.5 {
+                    left = min(left, x); right = max(right, x)
+                }
+            }
+        }
+        let scale = CGFloat(bitmap.pixelsWide) / width
+        precondition(left == 0 && right == Int(min(width, 64) * scale) - 1)
+    }
+    NotificationCenter.default.removeObserver(alignmentObserver)
+    print("PASS: real NSStatusBarButton output pixels remain at the left after automatic frame-change updates for both growth and shrinkage")
+    testMeter.configuration = normalized
+    precondition(!testMeter.accessibilitySummary.contains("GPU") && testMeter.accessibilitySummary.contains("CPU"))
+    let beforeReadingChange = testMeter.makeStatusImage().size.width
+    testMeter.reading = Reading()
+    precondition(testMeter.makeStatusImage().size.width == beforeReadingChange)
+    testMeter.configuration = hiddenLayout
+    precondition(testMeter.makeStatusImage().size.width == 16 && testMeter.accessibilitySummary == "Neylu")
+    print("PASS: menu bar visibility/order persistence, corrupt preferences, all-hidden entry, all metric permutations and stable image widths")
+    precondition(RefreshInterval.load(from: appearanceDefaults) == .twoSeconds)
+    precondition(RefreshInterval.allCases.map(\.rawValue) == [1, 2, 5, 10])
+    for interval in RefreshInterval.allCases {
+        interval.save(to: appearanceDefaults)
+        precondition(RefreshInterval.load(from: UserDefaults(suiteName: appearanceSuite)!) == interval)
+    }
+    appearanceDefaults.set(3, forKey: "refreshInterval")
+    precondition(RefreshInterval.load(from: appearanceDefaults) == .twoSeconds)
+    appearanceDefaults.removePersistentDomain(forName: appearanceSuite)
+    print("PASS: refresh interval defaults/order, preference round trip and invalid interval fallback")
+    print("PASS: appearance defaults/order, preference round trip, invalid preference fallback and system appearance mapping")
+    let cases: [(Double, UnitBasis, String)] = [
+        (0, .decimal, "0 KB/s"), (529_000, .decimal, "529 KB/s"),
+        (999_500, .decimal, "1.0 MB/s"), (1_200_000, .decimal, "1.2 MB/s"),
+        (1_048_576, .binary, "1.0 MiB/s"), (1_073_741_824, .binary, "1.0 GiB/s"),
+        (1_023 * 1_024, .binary, "1023 KiB/s"), (1_023.5 * 1_024, .binary, "1.0 MiB/s"),
+        (-1, .binary, "0 KiB/s")]
+    for (input, basis, expected) in cases {
+        let actual = formattedRate(input, basis: basis)
+        precondition(actual == expected, "Rate \(input): \(actual) != \(expected)")
+    }
+    precondition(formattedRate(0, basis: .binary, ready: false) == "—")
+    precondition(formattedMemory(48 * 1_024 * 1_024 * 1_024, basis: .binary) == "48 GiB")
+    precondition(formattedMemory(48_000_000_000, basis: .decimal) == "48 GB")
+    precondition(percent(99.8, ready: true) == "100%")
+    precondition(percent(-2, ready: true) == "0%")
+    precondition(percent(50, ready: false) == "—")
+    precondition(isExternalHardware(internalDevice: false, network: false, protocolName: "USB"))
+    precondition(isExternalHardware(internalDevice: false, network: false, protocolName: "PCI-Express"))
+    precondition(!isExternalHardware(internalDevice: true, network: false, protocolName: "PCI-Express"))
+    precondition(!isExternalHardware(internalDevice: false, network: false, protocolName: "Disk Image"))
+    precondition(!isExternalHardware(internalDevice: false, network: true, protocolName: "SMB"))
+    precondition(!isExternalHardware(internalDevice: nil, network: false, protocolName: nil))
+    var diskCounters = DiskIOCounters()
+    precondition(diskCounters.sample(read: 1000, written: 2000, now: 10) == nil)
+    let diskRates = diskCounters.sample(read: 1400, written: 2600, now: 12)!
+    precondition(diskRates.read == 200 && diskRates.write == 300)
+    precondition(diskCounters.sample(read: 0, written: 0, now: 14) == nil)
+    precondition(diskCounters.sample(read: 50, written: 100, now: 14) == nil)
+    let afterReset = diskCounters.sample(read: 150, written: 300, now: 16)!
+    precondition(afterReset.read == 50 && afterReset.write == 100)
+    var mountedFixtures = [MountedExternalDisk(url: URL(fileURLWithPath: "/"), reading: ExternalDiskReading(id: "external-a", name: "Demo SSD", total: 1000, free: 400))]
+    var diskDiscoveries = 0
+    let testDisks = ExternalDiskMonitor(discover: { diskDiscoveries += 1; return mountedFixtures })
+    precondition(testDisks.sample(now: 10).map(\.id) == ["external-a"])
+    mountedFixtures.append(MountedExternalDisk(url: URL(fileURLWithPath: "/"), reading: ExternalDiskReading(id: "external-b", name: "USB", total: 500, free: 100)))
+    precondition(testDisks.sample(now: 11).count == 1 && diskDiscoveries == 1)
+    testDisks.invalidate()
+    let connected = testDisks.sample(now: 12)
+    precondition(connected.count == 2 && connected.allSatisfy { !$0.activityReady })
+    mountedFixtures.removeFirst()
+    testDisks.invalidate()
+    precondition(testDisks.sample(now: 13).map(\.id) == ["external-b"])
+    mountedFixtures.removeAll()
+    testDisks.invalidate()
+    precondition(testDisks.sample(now: 14).isEmpty)
+    print("PASS: disk discovery cache, connection/removal invalidation and fresh reconnect baselines")
+    let ejectFixture = ExternalDiskReading(id: "test-eject", name: "Test Volume", total: 100, free: 50, volumeURL: URL(fileURLWithPath: "/Volumes/Neylu-Test-Only"))
+    func waitForEjection(_ actions: DiskActions) {
+        let deadline = Date().addingTimeInterval(5)
+        while actions.ejectingID != nil && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(actions.ejectingID == nil)
+    }
+    var ejectCalls = 0
+    var ejectCompletions = 0
+    let successfulEject = DiskActions(operation: { _ in ejectCalls += 1 })
+    successfulEject.onFinish = { precondition(Thread.isMainThread); ejectCompletions += 1 }
+    successfulEject.eject(ejectFixture)
+    successfulEject.eject(ejectFixture)
+    waitForEjection(successfulEject)
+    precondition(ejectCalls == 1 && ejectCompletions == 1 && successfulEject.failure == nil)
+    let busyEject = DiskActions(operation: { _ in throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError, userInfo: [NSLocalizedDescriptionKey: "Test volume is busy"]) })
+    busyEject.eject(ejectFixture)
+    waitForEjection(busyEject)
+    precondition(busyEject.failure?.message == "Test volume is busy")
+    precondition(busyEject.failure?.name == "Test Volume")
+    successfulEject.eject(ExternalDiskReading(id: "demo", name: "Demo", total: 100, free: 50))
+    precondition(successfulEject.ejectingID == nil && ejectCalls == 1)
+    print("PASS: ejection duplicate-click guard, main-thread completion, OS error presentation data and inert demo volumes")
+    print("PASS: external hardware filtering and disk I/O counter baselines, resets and zero-time intervals")
+    let sampler = Sampler()
+    _ = sampler.sample()
+    Thread.sleep(forTimeInterval: 1)
+    let r = sampler.sample()
+    precondition(r.cpuReady && (0...100).contains(r.cpu))
+    precondition(abs(r.cpuUser + r.cpuSystem + r.cpuIdle - 100) < 0.001)
+    precondition(abs(r.cpuUser + r.cpuSystem - r.cpu) < 0.001)
+    precondition(r.memoryReady && (0...100).contains(r.memory))
+    precondition(r.usedMemory <= r.totalMemory && r.totalMemory > 0)
+    precondition(r.diskReady && r.diskTotal > 0 && r.diskFree <= r.diskTotal)
+    if r.gpuReady { precondition((0...100).contains(r.gpu)) }
+    let position = detailFrame(button: NSRect(x: 900, y: 1000, width: 140, height: 24), visible: NSRect(x: 0, y: 0, width: 1200, height: 1000), content: NSSize(width: 380, height: 480))
+    precondition(position.maxY == 992 && position.maxX <= 1192)
+    var mountEventReading = Reading(cpu: 42, memory: 63, download: 123, upload: 456, cpuReady: true, networkReady: true, memoryReady: true)
+    sampler.refreshDisks(into: &mountEventReading)
+    precondition(mountEventReading.cpu == 42 && mountEventReading.memory == 63)
+    precondition(mountEventReading.download == 123 && mountEventReading.upload == 456)
+    precondition(mountEventReading.cpuReady && mountEventReading.networkReady && mountEventReading.memoryReady)
+    print("PASS: mount/eject refresh preserves CPU, memory and network readings")
+    sampler.resetAfterWake()
+    let wakeReading = sampler.sample()
+    precondition(!wakeReading.cpuReady && !wakeReading.networkReady && !wakeReading.diskActivityReady)
+    precondition(wakeReading.externalDisks.allSatisfy { !$0.activityReady })
+    precondition(wakeReading.memoryReady)
+    print("PASS: wake starts fresh CPU/network/disk baselines without stale rate spikes")
+    precondition(r.download >= 0 && r.upload >= 0)
+    precondition(automaticNetworkInterface(primary: "utun2", previous: "en0", available: ["en0", "utun2"]) == "utun2")
+    precondition(automaticNetworkInterface(primary: "en4", previous: "en0", available: ["en0", "en4"]) == "en4")
+    precondition(automaticNetworkInterface(primary: nil, previous: "en4", available: ["en0", "en4"]) == "en4")
+    precondition(automaticNetworkInterface(primary: nil, previous: "utun2", available: ["utun2", "en10", "en2"]) == "en2")
+    precondition(automaticNetworkInterface(primary: "en0", previous: "en0", available: []) == nil)
+    print("PASS: decimal/binary formatting, automatic primary/VPN routing, stable physical fallback, offline routes and live kernel sampling")
+    exit(0)
+}
