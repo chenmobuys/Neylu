@@ -309,11 +309,10 @@ final class UpdateController: NSObject, NSWindowDelegate {
                 setWorking(true, message: "update.status.preparing")
                 // Hashing, mounting, copying and code validation never block UI sampling.
                 let target = Bundle.main.bundleURL
-                let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/NeyluUpdater")
                 let prepared = try await Task.detached { () -> URL? in
                     try update.verify(package: package)
                     guard UpdateFiles.canReplace(target) else { return nil }
-                    return try Self.prepare(update, package: package, target: target, helper: helper, folder: folder)
+                    return try Self.prepare(update, package: package, target: target, folder: folder)
                 }.value
                 if Task.isCancelled {
                     if let prepared { try? FileManager.default.removeItem(at: prepared) }
@@ -351,7 +350,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
             } catch { failed(error) }
         }
     }
-    nonisolated private static func prepare(_ update: AvailableUpdate, package: URL, target: URL, helper: URL, folder: URL) throws -> URL {
+    nonisolated private static func prepare(_ update: AvailableUpdate, package: URL, target: URL, folder: URL) throws -> URL {
         let mount = folder.appendingPathComponent("mount")
         try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: false)
         try UpdateFiles.run("/usr/bin/hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount.path, package.path])
@@ -369,7 +368,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
                                                 to: resources.appendingPathComponent(language + ".lproj"))
             }
             // Copy the currently trusted helper, never a helper from the download.
-            try FileManager.default.copyItem(at: helper, to: stage.appendingPathComponent("NeyluUpdater"))
+            _ = try UpdateFiles.stageUpdater(from: target, in: stage)
             return stage
         } catch { try? FileManager.default.removeItem(at: stage); throw error }
     }

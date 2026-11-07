@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import CryptoKit
+import Darwin
 
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
@@ -127,6 +128,13 @@ actor AppcastFetchProbe {
     var cancellations = 0
     func begin() -> Int { calls += 1; return calls }
     func cancelled() { cancellations += 1 }
+    private var released = false
+    private var gate: CheckedContinuation<Void, Never>?
+    func waitForRelease() async {
+        guard !released else { return }
+        await withCheckedContinuation { gate = $0 }
+    }
+    func release() { released = true; gate?.resume(); gate = nil }
 }
 func asyncUpdatesTest(_ body: @escaping () async throws -> Void) throws {
     let done = DispatchSemaphore(value: 0)
@@ -169,16 +177,21 @@ try asyncUpdatesTest {
     let sharedProbe = AppcastFetchProbe()
     let shared = AppcastStore {
         _ = await sharedProbe.begin()
-        do { try await Task.sleep(nanoseconds: 100_000_000) }
-        catch { await sharedProbe.cancelled(); throw error }
+        do {
+            await sharedProbe.waitForRelease()
+            try Task.checkCancellation()
+        } catch { await sharedProbe.cancelled(); throw error }
         return parsedFeed
     }
-    let cancelled = Task { try await shared.load() }
+    // Keep the first consumer registered while cancelling another. A controlled
+    // response cannot finish before cancellation when the test runner is busy.
     let remaining = Task { try await shared.load() }
     try await waitForProbe { await sharedProbe.calls == 1 }
+    let cancelled = Task { try await shared.load() }
     try await Task.sleep(nanoseconds: 10_000_000)
     cancelled.cancel()
     do { _ = try await cancelled.value; fatalError("Cancelled consumer received an update") } catch is CancellationError { }
+    await sharedProbe.release()
     let surviving = try await remaining.value
     let sharedCalls = await sharedProbe.calls, sharedCancellations = await sharedProbe.cancellations
     expect(surviving.count == 3 && sharedCalls == 1 && sharedCancellations == 0, "One cancellation interrupted another consumer")
@@ -287,6 +300,50 @@ if let appPath = CommandLine.arguments.dropFirst().first {
     expect(upgrade && !same && !downgrade, "Installed version comparison failed")
     rejects("Wrong version accepted") { try UpdateFiles.validate(app, version: ReleaseVersion("99.0.0")!, architecture: arch, requiredTeam: nil) }
     rejects("Signed identity change accepted") { try UpdateFiles.validate(app, version: version, architecture: arch, requiredTeam: "UNTRUSTEDTEAM") }
+    let quarantined = root.appendingPathComponent("Quarantined.app")
+    try fm.copyItem(at: app, to: quarantined)
+    let sourceHelper = quarantined.appendingPathComponent("Contents/Helpers/NeyluUpdater")
+    func setAttribute(_ url: URL, _ name: String, _ text: String) throws {
+        let data = Data(text.utf8)
+        let result = data.withUnsafeBytes { setxattr(url.path, name, $0.baseAddress, data.count, 0, XATTR_NOFOLLOW) }
+        guard result == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+    }
+    func hasAttribute(_ url: URL, _ name: String) -> Bool {
+        getxattr(url.path, name, nil, 0, 0, XATTR_NOFOLLOW) >= 0
+    }
+    try setAttribute(sourceHelper, "com.apple.quarantine", "0181;00000000;NeyluUpdateTest;")
+    try setAttribute(sourceHelper, "io.github.chenmobuys.Neylu.test", "preserve")
+    let helperStage = root.appendingPathComponent(".Neylu-update-quarantine")
+    try fm.createDirectory(at: helperStage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+    let unpreparedHelper = helperStage.appendingPathComponent("UnpreparedUpdater")
+    try fm.copyItem(at: sourceHelper, to: unpreparedHelper)
+    expect(hasAttribute(unpreparedHelper, "com.apple.quarantine"), "Regression fixture did not reproduce inherited quarantine")
+    try fm.removeItem(at: unpreparedHelper)
+    let stagedHelper = try UpdateFiles.stageUpdater(from: quarantined, in: helperStage)
+    expect(!hasAttribute(stagedHelper, "com.apple.quarantine"), "Copied helper retained quarantine")
+    expect(hasAttribute(sourceHelper, "com.apple.quarantine"), "Source helper quarantine was modified")
+    expect(hasAttribute(stagedHelper, "io.github.chenmobuys.Neylu.test"), "Unrelated metadata was removed")
+    expect(try Data(contentsOf: stagedHelper) == Data(contentsOf: sourceHelper), "Helper bytes changed")
+    let helperProcess = Process()
+    helperProcess.executableURL = stagedHelper
+    try helperProcess.run()
+    helperProcess.waitUntilExit()
+    expect(helperProcess.terminationReason == .exit && helperProcess.terminationStatus == 1, "Verified staged helper could not execute its argument guard")
+    rejects("Existing staged helper was overwritten") { _ = try UpdateFiles.stageUpdater(from: quarantined, in: helperStage) }
+    try fm.removeItem(at: stagedHelper)
+    _ = try UpdateFiles.run("/usr/bin/xattr", ["-d", "com.apple.quarantine", sourceHelper.path])
+    _ = try UpdateFiles.stageUpdater(from: quarantined, in: helperStage)
+    try fm.removeItem(at: stagedHelper)
+    let sourceLink = root.appendingPathComponent("Helper-link")
+    try fm.moveItem(at: sourceHelper, to: sourceLink)
+    try fm.createSymbolicLink(at: sourceHelper, withDestinationURL: sourceLink)
+    rejects("Symlink helper accepted") { _ = try UpdateFiles.stageUpdater(from: quarantined, in: helperStage) }
+    try fm.removeItem(at: sourceHelper)
+    try fm.moveItem(at: sourceLink, to: sourceHelper)
+    try Data("tampered".utf8).write(to: quarantined.appendingPathComponent("Contents/Resources/LICENSE"))
+    rejects("Tampered source app supplied an updater") { _ = try UpdateFiles.stageUpdater(from: quarantined, in: helperStage) }
+    expect(!fm.fileExists(atPath: stagedHelper.path), "Rejected helper was left executable")
+    print("PASS quarantined updater staging verifies source signatures, preserves original/other metadata, rejects tampering/symlinks and launches the clean copy")
     let broken = root.appendingPathComponent("Broken.app")
     try fm.copyItem(at: app, to: broken)
     try Data("tampered".utf8).write(to: broken.appendingPathComponent("Contents/Resources/LICENSE"))

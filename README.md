@@ -91,6 +91,8 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 
 如果看到“将损坏你的电脑”等恶意软件警告，不要用上述命令处理。若仍无法打开，重新下载对应芯片的安装包并核对校验和；仍有问题时，请在 [Issues](https://github.com/chenmobuys/Neylu/issues) 附上 macOS 版本、芯片类型、Neylu 版本及完整报错文字。
 
+如果旧版内置更新被拦截，提示对象为 `NeyluUpdater`，请点「完成」并取消更新；确认信任已安装的 Neylu 后执行上面的命令，再重新检查更新。单独允许主 App 运行可能仍保留内部辅助程序的隔离标记。
+
 ### 怎么使用
 
 - **找到 Neylu**：启动后显示在屏幕顶部菜单栏，默认不在 Dock 显示，也不会弹出主窗口。
@@ -110,7 +112,7 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 - Alpha / Beta / RC 版本会检查后续测试版和正式版；正式版只接收正式更新，不降级。
 - 检查由用户手动发起；不上传监控数据，不需要 GitHub 登录。网络不可用或 GitHub 限流时可重试，或从窗口打开发布页下载。
 - 如果正在 DMG 中运行、处于 App Translocation 隔离位置或安装目录不可写，改为打开已校验的安装包，手动拖入「应用程序」，不会自动请求提权。
-- 当前 Alpha 仍未完成 Developer ID 签名与公证。更新不会关闭 Gatekeeper 或移除隔离标记；系统仍有可能要求按上面的首次打开步骤允许新版运行。SHA-256 用于发现下载损坏，不替代开发者身份认证，更新源依赖本仓库的 GitHub HTTPS 发布渠道。
+- 当前 Alpha 仍未完成 Developer ID 签名与公证。更新不会关闭 Gatekeeper；仅在验证当前 App 与更新辅助程序签名后，处理私有暂存辅助程序副本的隔离标记，不修改已安装 App 或下载的候选应用。系统仍有可能要求按上面的首次打开步骤允许新版运行。SHA-256 用于发现下载损坏，不替代开发者身份认证，更新源依赖本仓库的 GitHub HTTPS 发布渠道。
 
 也可先退出 Neylu，再手动将新版 `Neylu.app` 拖入「应用程序」替换旧版。
 

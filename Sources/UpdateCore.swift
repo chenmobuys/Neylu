@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Security
+import Darwin
 
 // Shared by the app, installer helper and tests. No shell interpolation or
 // remote executable scripts are used anywhere in the update path.
@@ -161,6 +162,41 @@ enum UpdateFiles {
         guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
               let dictionary = info as? [String: Any] else { throw UpdateFailure.bundle }
         return dictionary[kSecCodeInfoTeamIdentifier as String] as? String
+    }
+    // The user requested this update from an already running app. Verify that
+    // app and its nested code before preparing its own helper. FileManager's
+    // copy preserves quarantine, but Gatekeeper treats the relocated tool as a
+    // separate launch. Clear only that verified private copy, never the source
+    // app, downloaded candidate, or unrelated metadata.
+    static func stageUpdater(from app: URL, in stage: URL) throws -> URL {
+        let attributes = try fm.attributesOfItem(atPath: stage.path)
+        guard regularDirectory(app), regularDirectory(stage),
+              stage.deletingLastPathComponent() == app.deletingLastPathComponent(),
+              stage.lastPathComponent.hasPrefix(".Neylu-update-"),
+              (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == getuid(),
+              (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700,
+              try info(app)["CFBundleIdentifier"] as? String == "io.github.chenmobuys.Neylu" else { throw UpdateFailure.destination }
+        let source = app.appendingPathComponent("Contents/Helpers/NeyluUpdater")
+        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true,
+              source.standardizedFileURL == source.resolvingSymlinksInPath() else { throw UpdateFailure.bundle }
+        let expected = SHA256.hash(data: try Data(contentsOf: source))
+        _ = try signingTeam(app)
+        let destination = stage.appendingPathComponent("NeyluUpdater")
+        // copyItem refuses an existing destination; do not remove someone else's file.
+        try fm.copyItem(at: source, to: destination)
+        do {
+            guard SHA256.hash(data: try Data(contentsOf: destination)) == expected else { throw UpdateFailure.bundle }
+            _ = try signingTeam(destination)
+            if removexattr(destination.path, "com.apple.quarantine", XATTR_NOFOLLOW) != 0 {
+                let code = errno
+                guard code == ENOATTR else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(code)) }
+            }
+            return destination
+        } catch {
+            try? fm.removeItem(at: destination)
+            throw error
+        }
     }
     static func info(_ app: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: app.appendingPathComponent("Contents/Info.plist"))

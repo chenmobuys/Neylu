@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Fix the relocated update helper retaining download quarantine. Verify the running app and copied helper before removing quarantine from that private copy only; leave the installed app, downloaded candidate, and unrelated metadata untouched.
+- 修复更新辅助程序复制到暂存目录时保留下载隔离标记、再次被系统拦截的问题。先验证当前 App 与辅助程序签名，仅处理私有暂存副本，不修改已安装 App、下载的候选应用或其他元数据。
+
 ## [0.1.0-alpha.5] - 2026-11-08
 
 <!-- neylu:en -->
