@@ -47,5 +47,6 @@ extension MonitorModel {
             reading.gpuTiler = nil
             gpuHistory = gpuHistory.map { GPUPoint(timestamp: $0.timestamp, total: $0.total, renderer: nil, tiler: nil) }
         }
+        updateChartWindow(at: now)
     }
 }

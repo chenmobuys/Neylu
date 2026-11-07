@@ -8,6 +8,8 @@ final class MonitorModel: ObservableObject {
     @Published var gpuHistory: [GPUPoint] = []
     @Published var memoryHistory: [MemoryPoint] = []
     @Published var networkHistory: [NetworkPoint] = []
+    @Published private(set) var chartWindow = HistoryWindow(now: Date())
+    private var chartStart: Date?
     let settings = MonitorSettings()
     let layout = DetailLayout()
     let diskActions = DiskActions()
@@ -38,6 +40,7 @@ final class MonitorModel: ObservableObject {
             gpuHistory = saved.gpu
             memoryHistory = saved.memory
             networkHistory = saved.network
+            updateChartWindow(at: now)
             historyStore = store
             store.onError = { [weak self] message in
                 DispatchQueue.main.async { self?.historySaveFailed(message) }
@@ -55,14 +58,29 @@ final class MonitorModel: ObservableObject {
         gpuHistory.removeAll { $0.timestamp < cutoff }
         memoryHistory.removeAll { $0.timestamp < cutoff }
         networkHistory.removeAll { $0.timestamp < cutoff }
+        if history.isEmpty && gpuHistory.isEmpty && memoryHistory.isEmpty && networkHistory.isEmpty {
+            chartStart = nil
+        }
         if let cpu { history.append(cpu) }
         if let gpu { gpuHistory.append(gpu) }
         if let memory { memoryHistory.append(memory) }
         if let network { networkHistory.append(network) }
+        updateChartWindow(at: now)
         if cpu != nil || gpu != nil || memory != nil || network != nil {
             historyStore?.append(HistorySample(timestamp: now, cpu: cpu, gpu: gpu, memory: memory, network: network))
         }
     }
+    func updateChartWindow(at now: Date) {
+        // Keep the recording origin after pruning so a full chart stays at 120s.
+        // Every chart uses this same range and the latest sampling timestamp.
+        if chartStart == nil {
+            chartStart = [history.first?.timestamp, gpuHistory.first?.timestamp,
+                          memoryHistory.first?.timestamp, networkHistory.first?.timestamp]
+                .compactMap { $0 }.filter { $0 <= now }.min()
+        }
+        chartWindow = HistoryWindow(earliest: chartStart, now: now)
+    }
+
     func saveHistoryNow() {
         do { try historyStore?.flush() }
         catch { historySaveFailed(error.localizedDescription) }
@@ -313,22 +331,22 @@ final class MeterView: NSView {
 
 struct CPUChart: View {
     let points: [CPUPoint]
+    let window: HistoryWindow
     var primaryColor = Color.blue.opacity(0.65)
     var accessibilityTitle = L("chart.cpu.label")
     var body: some View {
         Canvas { context, size in
-            let now = Date()
-            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: now)
+            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end)
             for segment in segments {
                 guard let first = segment.first, let last = segment.last else { continue }
-                let start = size.width * HistoryWindow.fraction(first.timestamp, now: now)
-                let end = size.width * HistoryWindow.fraction(last.timestamp, now: now)
+                let start = size.width * window.fraction(first.timestamp)
+                let end = size.width * window.fraction(last.timestamp)
                 func area(total: Bool) -> Path {
                     var path = Path()
                     path.move(to: CGPoint(x: start, y: size.height))
                     for point in segment {
                         let value = min(100, max(0, total ? point.user + point.system : point.system))
-                        path.addLine(to: CGPoint(x: size.width * HistoryWindow.fraction(point.timestamp, now: now), y: size.height * (1 - value / 100)))
+                        path.addLine(to: CGPoint(x: size.width * window.fraction(point.timestamp), y: size.height * (1 - value / 100)))
                     }
                     path.addLine(to: CGPoint(x: end, y: size.height))
                     path.closeSubpath()
@@ -346,11 +364,11 @@ struct CPUChart: View {
 
 struct GPUChart: View {
     let points: [GPUPoint]
+    let window: HistoryWindow
     var language = AppLanguage.load()
     var body: some View {
         Canvas { context, size in
-            let now = Date()
-            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: now)
+            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end)
             let colors: [Color] = [.blue, .red, .teal]
             // Only stack metrics actually present throughout the visible history.
             // Missing hardware counters never become a zero-height synthetic band.
@@ -367,11 +385,11 @@ struct GPUChart: View {
                     }
                     var area = Path()
                     for (index, point) in segment.enumerated() {
-                        let position = CGPoint(x: size.width * HistoryWindow.fraction(point.timestamp, now: now), y: size.height - height(point, through: band + 1))
+                        let position = CGPoint(x: size.width * window.fraction(point.timestamp), y: size.height - height(point, through: band + 1))
                         if index == 0 { area.move(to: position) } else { area.addLine(to: position) }
                     }
                     for point in segment.reversed() {
-                        area.addLine(to: CGPoint(x: size.width * HistoryWindow.fraction(point.timestamp, now: now), y: size.height - height(point, through: band)))
+                        area.addLine(to: CGPoint(x: size.width * window.fraction(point.timestamp), y: size.height - height(point, through: band)))
                     }
                     area.closeSubpath()
                     context.fill(area, with: .color(color.opacity(0.65)))
@@ -479,7 +497,7 @@ struct MetricsOverviewView: View {
             heading(MenuBarMetric.cpu.symbol, "CPU", value: percent(r.cpu, ready: r.cpuReady))
             fact(L("metrics.temperature"), value: r.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? (r.cpuTemperatureSupported ? L("metrics.unavailable") : L("metrics.unsupported")))
                 .help(r.cpuTemperature != nil ? L("temperature.sensor_hint") : (r.cpuTemperatureSupported ? L("temperature.no_sensor") : L("temperature.unsupported_device")))
-            CPUChart(points: model.history).frame(height: 50).padding(.vertical, 3)
+            CPUChart(points: model.history, window: model.chartWindow).frame(height: 50).padding(.vertical, 3)
             VStack(spacing: 5) {
                 breakdown(L("metrics.user"), color: .blue, value: r.cpuUser, ready: r.cpuReady)
                 breakdown(L("metrics.system"), color: .red, value: r.cpuSystem, ready: r.cpuReady)
@@ -491,7 +509,7 @@ struct MetricsOverviewView: View {
         VStack(spacing: 7) {
             heading(MenuBarMetric.gpu.symbol, "GPU", value: percent(r.gpu, ready: r.gpuReady))
             fact(L("metrics.cores"), value: r.gpuCores.map { L10n.cores($0) } ?? "—")
-            GPUChart(points: model.gpuHistory, language: settings.language).frame(height: 50).padding(.vertical, 3)
+            GPUChart(points: model.gpuHistory, window: model.chartWindow, language: settings.language).frame(height: 50).padding(.vertical, 3)
                 .overlay { if !r.gpuReady { Text(L("metrics.gpu_unavailable")).font(.system(size: 10)).foregroundStyle(.secondary) } }
             VStack(spacing: 5) {
                 breakdown(L("metrics.gpu_utilization"), color: .blue, value: r.gpu, ready: r.gpuReady)
@@ -507,7 +525,7 @@ struct MetricsOverviewView: View {
                 fact(L("metrics.used"), value: r.memoryReady ? formattedMemory(r.usedMemory, basis: model.basis) : "—")
                 fact(L("metrics.total"), value: r.memoryReady ? formattedMemory(r.totalMemory, basis: model.basis) : "—")
             }.frame(height: 42)
-            MemoryChart(points: model.memoryHistory, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            MemoryChart(points: model.memoryHistory, window: model.chartWindow, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact(L("metrics.available"), value: r.memoryReady ? formattedMemory(r.totalMemory - min(r.totalMemory, r.usedMemory), basis: model.basis) : "—")
         }
     }
@@ -518,7 +536,7 @@ struct MetricsOverviewView: View {
                 rateRow(L("metrics.download"), symbol: "arrow.down", bytes: r.download)
                 rateRow(L("metrics.upload"), symbol: "arrow.up", bytes: r.upload)
             }.frame(height: 42)
-            NetworkChart(points: model.networkHistory, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            NetworkChart(points: model.networkHistory, window: model.chartWindow, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact("IP", value: r.address, truncatesValue: true).textSelection(.enabled).help(r.address)
         }
     }

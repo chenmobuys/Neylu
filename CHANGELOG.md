@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 图表启动时按已有数据铺满，随采样积累逐渐压缩，满两分钟后固定滚动；四张图共用时间范围，无近期数据后恢复自适应展示。
+- Expand startup charts to fit the available history, then settle into a shared rolling two-minute window as samples accumulate.
+
 - 补充中英文 Homebrew 首次启动说明和一条命令完成安装及手动放行的方式；安装完成后直接显示适配实际安装路径的 `xattr` 提示，不自动执行。
 - Document first-launch approval in English and Chinese, with a combined install command. Homebrew now prints the `xattr` instructions using the actual installation path without running them automatically.
 

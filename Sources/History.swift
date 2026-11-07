@@ -45,6 +45,23 @@ struct HistorySample {
 
 struct HistoryWindow {
     static let duration: TimeInterval = 120
+    let start: Date
+    let end: Date
+
+    init(earliest: Date? = nil, now: Date) {
+        end = now
+        let span: TimeInterval
+        if let earliest, earliest <= now {
+            span = min(Self.duration, max(1, now.timeIntervalSince(earliest)))
+        } else {
+            span = Self.duration
+        }
+        start = now.addingTimeInterval(-span)
+    }
+
+    func fraction(_ date: Date) -> Double {
+        min(1, max(0, date.timeIntervalSince(start) / end.timeIntervalSince(start)))
+    }
     static func segments<T>(_ points: [T], timestamp: KeyPath<T, Date>, now: Date) -> [[T]] {
         let cutoff = now.addingTimeInterval(-duration)
         let visible = points.filter { $0[keyPath: timestamp] >= cutoff && $0[keyPath: timestamp] <= now }
@@ -54,9 +71,6 @@ struct HistoryWindow {
         return visible.isEmpty ? [] : [visible]
     }
 
-    static func fraction(_ date: Date, now: Date) -> Double {
-        min(1, max(0, 1 + date.timeIntervalSince(now) / duration))
-    }
 }
 
 // All SQLite work and pending samples are owned by this serial queue.
