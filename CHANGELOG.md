@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Discover updates through architecture-specific static RSS appcasts instead of the unauthenticated GitHub REST API. Keep the native updater and existing installer verification without bundling Sparkle.
+- Generate and publish feeds automatically after verifying released installers; retain stable/preview history and continue independent Homebrew synchronization.
+- Share short-lived metadata caches and in-flight requests between manual/background checks, with cancellation when the final consumer leaves.
+- 更新检查改用架构独立的静态 appcast，不再请求未登录 GitHub REST API；保留原生更新界面及现有安装校验，不引入 Sparkle 框架。
+- 发布后自动校验安装包并更新静态订阅，保留正式版与测试版历史，Homebrew 继续独立自动同步；手动和后台检查共用短时缓存及进行中的请求，最后一个调用取消时停止下载。
+
 ## [0.1.0-alpha.4] - 2026-11-07
 
 <!-- neylu:en -->

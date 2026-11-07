@@ -52,7 +52,7 @@ This command affects only Neylu. It does not sign or notarize the app, disable G
 
 Click the menu bar readings to open the overview. Right-click them, or use the overview’s **…** button, to open settings. Choose **Menu Bar Items…** to select metrics and reorder them. Settings take effect immediately.
 
-Choose **Check for Updates…** to check GitHub. **Update Now** downloads and verifies the installer, quits Neylu normally, replaces the app, and relaunches it. If replacement fails or the new app quits during the startup observation period, the previous installation is restored. History and preferences are kept outside the app bundle and remain intact.
+Choose **Check for Updates…** to read the static appcast. Installers remain on GitHub Releases. The app does not call the GitHub REST API or require an account or token. Manual and background checks share in-flight requests and a one-minute metadata cache. **Update Now** downloads and verifies the installer, quits Neylu normally, replaces the app, and relaunches it. If replacement fails or the new app quits during the startup observation period, the previous installation is restored. History and preferences are kept outside the app bundle and remain intact.
 
 If the current location cannot be safely replaced, Neylu opens the verified DMG for manual installation. It does not request administrator privileges or remove quarantine attributes automatically. By default, Neylu checks GitHub once a day in the background without opening a window or downloading an installer. A dot on the settings button and a version label in the menu indicate an available update. Disable **Automatically Check for Updates** to opt out. No GitHub account is required.
 

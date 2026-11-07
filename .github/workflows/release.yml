@@ -144,3 +144,11 @@ jobs:
     with:
       tag: ${{ inputs.tag || github.ref_name }}
     secrets: inherit
+  appcast:
+    name: Update static appcasts
+    needs: [prepare, publish]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/appcast.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}

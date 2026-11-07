@@ -4,8 +4,8 @@ import CryptoKit
 
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
-func expect(_ value: @autoclosure () -> Bool, _ message: String) {
-    guard value() else { fatalError(message) }
+func expect(_ value: @autoclosure () throws -> Bool, _ message: String) {
+    guard (try? value()) == true else { fatalError(message) }
 }
 func rejects(_ message: String, _ operation: () throws -> Void) {
     do { try operation(); fatalError(message) } catch { }
@@ -82,6 +82,126 @@ expect(ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.10", defaults: no
 expect(ReleaseNotesHistory.shouldPresent(current: "0.1.0", defaults: notesDefaults), "Stable upgrade did not prompt")
 expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.11", defaults: notesDefaults), "Preview downgrade prompted after stable")
 print("PASS release notes first-launch baseline, persistent once-per-upgrade prompts, restarts, reinstalls and downgrades")
+
+let fixtureRoot = URL(fileURLWithPath: ProcessInfo.processInfo.environment["NEYLU_APPCAST_FIXTURES"]!)
+let armFeed = try Data(contentsOf: fixtureRoot.appendingPathComponent("appcast-arm64.xml"))
+let intelFeed = try Data(contentsOf: fixtureRoot.appendingPathComponent("appcast-x86_64.xml"))
+let testSystem = OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0)
+let parsedFeed = try Appcast.releases(from: armFeed, architecture: "arm64", system: testSystem)
+expect(parsedFeed.count == 3, "Publisher/client appcast contract lost versions")
+expect(parsedFeed.first!.body!.contains("**Fix** & <data>") && parsedFeed.first!.body!.contains("中文"), "XML escaping or Unicode release notes changed")
+expect(try AvailableUpdate.check(in: parsedFeed, current: ReleaseVersion("0.1.0-alpha.4")!, architecture: "arm64")?.version.text == "0.2.0-alpha.10", "Static preview selection or SemVer ordering")
+expect(try AvailableUpdate.check(in: parsedFeed, current: ReleaseVersion("0.0.1")!, architecture: "arm64")?.version.text == "0.1.0", "Static feed offered a preview to stable users")
+let parsedIntel = try Appcast.releases(from: intelFeed, architecture: "x86_64", system: testSystem)
+expect(parsedIntel.first!.assets.first!.name.hasSuffix("x86_64.dmg"), "Intel enclosure selection")
+rejects("Cross-architecture feed accepted") { _ = try Appcast.releases(from: armFeed, architecture: "x86_64", system: testSystem) }
+let xml = String(decoding: armFeed, as: UTF8.self)
+for bad in ["", xml.replacingOccurrences(of: "<rss ", with: "<!DOCTYPE rss [<!ENTITY x 'bad'>]><rss "),
+            xml.replacingOccurrences(of: Appcast.neylu, with: "https://evil.example"),
+            xml.replacingOccurrences(of: "<sparkle:channel>alpha", with: "<sparkle:channel>stable"),
+            xml.replacingOccurrences(of: "length=\"5\"", with: "length=\"0\""),
+            xml.replacingOccurrences(of: "https://github.com/chenmobuys/Neylu/releases/download/", with: "https://evil.example/"),
+            xml.replacingOccurrences(of: "13.0.0", with: "13.bad.0.0"),
+            xml.replacingOccurrences(of: "<sparkle:version>3", with: "<sparkle:version>0") ] {
+    rejects("Unsafe or malformed appcast accepted") { _ = try Appcast.releases(from: Data(bad.utf8), architecture: "arm64", system: testSystem) }
+}
+rejects("Oversized XML accepted") { _ = try Appcast.releases(from: Data(repeating: 65, count: Appcast.limit + 1), architecture: "arm64") }
+let alias = xml.replacingOccurrences(of: "xmlns:neylu=", with: "xmlns:n=").replacingOccurrences(of: "neylu:", with: "n:")
+expect(try Appcast.releases(from: Data(alias.utf8), architecture: "arm64", system: testSystem).count == 3, "Namespace identity was confused with a hardcoded prefix")
+let futureOS = xml.replacingOccurrences(of: "13.0.0", with: "99.0.0")
+expect(try Appcast.releases(from: Data(futureOS.utf8), architecture: "arm64", system: testSystem).isEmpty, "Unsupported macOS requirement was ignored")
+for arch in ["arm64", "x86_64"] { expect(UpdateDownload.allowed(Appcast.url(for: arch)!), "Static feed URL rejected") }
+for bad in ["https://api.github.com/repos/chenmobuys/Neylu/releases", "https://raw.githubusercontent.com/other/repo/updates/appcast-arm64.xml", "https://raw.githubusercontent.com/chenmobuys/Neylu/main/appcast-arm64.xml", Appcast.url(for: "arm64")!.absoluteString + "?other=1"] {
+    expect(!UpdateDownload.allowed(URL(string: bad)!), "REST fallback or foreign static feed allowed")
+}
+print("PASS real publisher XML/client contract, both architectures, stable/preview channels, XML safety, namespaced checksums and minimum macOS")
+
+final class AppcastTestClock {
+    private let lock = NSLock()
+    private var date = Date()
+    func now() -> Date { lock.lock(); defer { lock.unlock() }; return date }
+    func advance(_ seconds: TimeInterval) { lock.lock(); defer { lock.unlock() }; date += seconds }
+}
+actor AppcastFetchProbe {
+    var calls = 0
+    var cancellations = 0
+    func begin() -> Int { calls += 1; return calls }
+    func cancelled() { cancellations += 1 }
+}
+func asyncUpdatesTest(_ body: @escaping () async throws -> Void) throws {
+    let done = DispatchSemaphore(value: 0)
+    var result: Result<Void, Error>?
+    Task.detached {
+        do { try await body(); result = .success(()) } catch { result = .failure(error) }
+        done.signal()
+    }
+    expect(done.wait(timeout: .now() + 10) == .success, "Async update tests timed out")
+    try result!.get()
+}
+func waitForProbe(_ condition: () async -> Bool) async throws {
+    let deadline = Date().addingTimeInterval(2)
+    while !(await condition()) && Date() < deadline { try await Task.sleep(nanoseconds: 1_000_000) }
+    let ready = await condition()
+    expect(ready, "Asynchronous fetch did not reach expected state")
+}
+try asyncUpdatesTest {
+    let clock = AppcastTestClock()
+    let probe = AppcastFetchProbe()
+    let store = AppcastStore(clock: clock.now) {
+        _ = await probe.begin()
+        try await Task.sleep(nanoseconds: 30_000_000)
+        return parsedFeed
+    }
+    let one = Task { try await store.load() }
+    let two = Task { try await store.load() }
+    let a = try await one.value, b = try await two.value
+    expect(a.count == 3 && b.count == 3, "Concurrent consumers lost release metadata")
+    var calls = await probe.calls
+    expect(calls == 1, "Manual/background checks did not share the fetch")
+    _ = try await store.load()
+    calls = await probe.calls
+    expect(calls == 1, "Fresh cache did not suppress redundant download")
+    clock.advance(61)
+    _ = try await store.load()
+    calls = await probe.calls
+    expect(calls == 2, "Expired cache did not refresh")
+
+    let sharedProbe = AppcastFetchProbe()
+    let shared = AppcastStore {
+        _ = await sharedProbe.begin()
+        do { try await Task.sleep(nanoseconds: 100_000_000) }
+        catch { await sharedProbe.cancelled(); throw error }
+        return parsedFeed
+    }
+    let cancelled = Task { try await shared.load() }
+    let remaining = Task { try await shared.load() }
+    try await waitForProbe { await sharedProbe.calls == 1 }
+    try await Task.sleep(nanoseconds: 10_000_000)
+    cancelled.cancel()
+    do { _ = try await cancelled.value; fatalError("Cancelled consumer received an update") } catch is CancellationError { }
+    let surviving = try await remaining.value
+    let sharedCalls = await sharedProbe.calls, sharedCancellations = await sharedProbe.cancellations
+    expect(surviving.count == 3 && sharedCalls == 1 && sharedCancellations == 0, "One cancellation interrupted another consumer")
+
+    let lastProbe = AppcastFetchProbe()
+    let last = AppcastStore {
+        let call = await lastProbe.begin()
+        if call == 1 {
+            do { try await Task.sleep(nanoseconds: 30_000_000_000) }
+            catch { await lastProbe.cancelled(); throw error }
+        }
+        return parsedFeed
+    }
+    let request = Task { try await last.load() }
+    try await waitForProbe { await lastProbe.calls == 1 }
+    request.cancel()
+    do { _ = try await request.value; fatalError("Last consumer cancellation failed") } catch is CancellationError { }
+    try await waitForProbe { await lastProbe.cancellations == 1 }
+    let retry = try await last.load()
+    let retryCalls = await lastProbe.calls
+    expect(retry.count == 3 && retryCalls == 2, "Cancelled generation poisoned the next request")
+}
+print("PASS shared static-feed request, short cache, expiry, isolated consumer cancellation and final-consumer download cancellation")
 
 let current = ReleaseVersion("0.1.0-alpha.3")!
 let releases = [release("0.1.0-alpha.2"), release("0.2.0-alpha.1"), release("0.1.0"), release("1.0.0", draft: true)]
@@ -174,23 +294,17 @@ if let appPath = CommandLine.arguments.dropFirst().first {
     print("PASS real app signature, version, signing identity and resource tampering checks")
 }
 
-if CommandLine.arguments.contains("--live-github") {
+if CommandLine.arguments.contains("--live-update") {
     let done = DispatchSemaphore(value: 0)
     var failure: Error?
     Task.detached {
         do {
-            let metadata = root.appendingPathComponent("releases.json")
-            try await UpdateDownload(destination: metadata, limit: 2 * 1024 * 1024, progress: { _ in }).fetch(
-                URL(string: "https://api.github.com/repos/chenmobuys/Neylu/releases?per_page=100")!)
-            let releases = try JSONDecoder().decode([GitHubRelease].self, from: Data(contentsOf: metadata))
             #if arch(arm64)
             let arch = "arm64"
             #else
             let arch = "x86_64"
             #endif
-            guard let update = try AvailableUpdate.check(in: releases, current: ReleaseVersion("0.0.0-alpha.1")!, architecture: arch) else {
-                throw UpdateFailure.metadata
-            }
+            guard let update = try await UpdateDiscovery.find(current: ReleaseVersion("0.0.0-alpha.1")!, architecture: arch) else { throw UpdateFailure.metadata }
             let package = root.appendingPathComponent("live.dmg")
             try await UpdateDownload(destination: package, limit: update.size, progress: { _ in }).fetch(update.package)
             try update.verify(package: package)
@@ -201,9 +315,9 @@ if CommandLine.arguments.contains("--live-github") {
             try UpdateFiles.validate(mount.appendingPathComponent("Neylu.app"), version: update.version, architecture: arch, requiredTeam: nil)
             let cancelled = UpdateDownload(destination: root.appendingPathComponent("cancelled"), limit: 1024, progress: { _ in })
             cancelled.cancel()
-            do { try await cancelled.fetch(URL(string: "https://api.github.com/repos/chenmobuys/Neylu/releases?per_page=1")!); throw UpdateFailure.operation }
+            do { try await cancelled.fetch(Appcast.url(for: arch)!); throw UpdateFailure.operation }
             catch let error as URLError { expect(error.code == .cancelled, "Cancellation failed") }
-            print("PASS live GitHub metadata, streamed DMG, SHA-256, mounted app validation and cancellation")
+            print("PASS live static appcast, streamed DMG, SHA-256, mounted app validation and cancellation")
         } catch { failure = error }
         done.signal()
     }
@@ -220,10 +334,10 @@ if CommandLine.arguments.contains("--live-check") {
         }
         let deadline = Date().addingTimeInterval(45)
         while response == nil && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
-        guard let response else { fatalError("Live GitHub discovery timed out") }
+        guard let response else { fatalError("Live appcast discovery timed out") }
         switch response {
-        case .success(let update): print("PASS live bounded GitHub release discovery: " + (update?.version.text ?? "no newer compatible release"))
-        case .failure(let error): fatalError("Live GitHub discovery failed: \(error)")
+        case .success(let update): print("PASS live bounded static appcast discovery: " + (update?.version.text ?? "no newer compatible release"))
+        case .failure(let error): fatalError("Live appcast discovery failed: \(error)")
         }
     }
 }

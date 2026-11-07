@@ -1,0 +1,54 @@
+name: Appcast
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag to synchronize'
+        required: true
+        type: string
+  push:
+    branches: [main]
+    paths: ['scripts/appcast.py', 'scripts/publish-appcast.py', '.github/workflows/appcast.yml']
+permissions:
+  contents: read
+concurrency:
+  group: appcast-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify published installers and update static feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: chenmobuys/Neylu
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          RELEASE_TAG="${INPUT_TAG:-v$(cat VERSION)}"
+          python3 - "$RELEASE_TAG" <<'PY'
+          import re, sys
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?', sys.argv[1]):
+              raise SystemExit('Invalid release tag')
+          PY
+          mkdir -p .build/appcast-assets
+          flags=()
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ -z "$INPUT_TAG" ]; then flags+=(--allow-missing); fi
+          python3 scripts/publish-appcast.py --fetch-tag "$RELEASE_TAG" \
+            --metadata .build/appcast-release.json "${flags[@]}"
+          if [ ! -f .build/appcast-release.json ]; then exit 0; fi
+          build_number="$(git show "$RELEASE_TAG:BUILD_NUMBER")"
+          gh release download "$RELEASE_TAG" --dir .build/appcast-assets --pattern 'Neylu-*.dmg'
+          python3 scripts/publish-appcast.py --metadata .build/appcast-release.json \
+            --assets .build/appcast-assets --build "$build_number"

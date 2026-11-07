@@ -19,8 +19,11 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
         self.destination = destination; self.limit = limit; self.progress = progress
     }
     static func allowed(_ url: URL) -> Bool {
-        url.scheme == "https" && url.user == nil && url.password == nil && (url.port == nil || url.port == 443) &&
-            ["api.github.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(url.host ?? "")
+        guard url.scheme == "https", url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return false }
+        if url.host == "raw.githubusercontent.com" {
+            return ["arm64", "x86_64"].compactMap { Appcast.url(for: $0) }.contains(url)
+        }
+        return ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(url.host ?? "")
     }
     func cancel() {
         lock.lock(); cancelled = true; let running = task; lock.unlock()
@@ -40,7 +43,6 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
                 self.session = session
                 var request = URLRequest(url: url)
                 request.setValue("Neylu-Updater", forHTTPHeaderField: "User-Agent")
-                request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
                 let task = session.downloadTask(with: request)
                 lock.lock(); self.task = task; let cancelled = self.cancelled; lock.unlock()
                 if cancelled { task.cancel() }
@@ -61,8 +63,11 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
         do {
-            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode
-            if status == 403 || status == 429 { throw UpdateFailure.rateLimited }
+            let response = downloadTask.response as? HTTPURLResponse
+            let status = response?.statusCode
+            if status == 429 || (status == 403 && response?.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0") {
+                throw UpdateFailure.rateLimited
+            }
             guard status == 200,
                   let count = try FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber,
                   count.int64Value > 0, count.int64Value <= limit else { throw UpdateFailure.download }

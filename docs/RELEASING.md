@@ -1,7 +1,7 @@
 # 发布维护
 
 目标仓库：`chenmobuys/Neylu`。当前无 Developer ID 证书，先使用 preview 流程。
-首发版本为 0.1.0-alpha.1，当前版本为 0.1.0-alpha.2。Alpha / Beta / RC 创建 GitHub 预发布；自有 Homebrew tap 也支持这些测试版，不以 Developer ID 为前提。
+首发版本为 0.1.0-alpha.1，当前版本以仓库 VERSION 为准。Alpha / Beta / RC 创建 GitHub 预发布；自有 Homebrew tap 也支持这些测试版，不以 Developer ID 为前提。
 
 ## 一次性配置
 
@@ -14,8 +14,8 @@
 ## 测试版：目前可用
 
 ```sh
-git tag v0.1.0-alpha.2
-git push origin v0.1.0-alpha.2
+git tag v$(cat VERSION)
+git push origin v$(cat VERSION)
 ```
 
 也可在 Actions → Release → Run workflow 输入已存在的 预发布 tag。
@@ -57,6 +57,23 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 若上传中途失败导致缺失附件，先检查 Release，不要替换已被下载的 DMG；必要时撤回不完整版本，用新版本号发布。
 已公开版本不要移动 tag 或替换 DMG，否则会破坏已有校验和与安装。
 
+## 静态 appcast
+
+发布成功后，Release 工作流自动调用 `.github/workflows/appcast.yml`，与 Homebrew 同步独立运行：
+
+1. 使用本仓库临时 `GITHUB_TOKEN` 读取已公开 Release，下载 ARM / Intel 两份最终 DMG，并复核 GitHub SHA-256、实际大小和仓库下载地址。
+2. 从对应 tag 的 `BUILD_NUMBER` 读取构建号，`scripts/appcast.py` 生成 RSS/Sparkle 命名空间的架构独立订阅，保留各最近十个正式版及测试版。
+3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml`，不修改源码分支或 Release 附件。同版本校验值、大小和构建号变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
+4. 客户端通过 GitHub 静态内容服务读取固定 HTTPS 地址，不访问 REST API：
+   - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-arm64.xml
+   - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-x86_64.xml
+
+无需额外服务器、个人 PAT、Apple Developer ID 或新的仓库 Secret。客户端使用系统 XMLParser，不捆绑 Sparkle 框架；`neylu:sha256` 扩展承载已核对的安装包摘要，继续执行已有的下载完整性、版本、架构和应用代码签名验证。这不是 Sparkle 的 EdDSA 更新签名，不能替代 Apple 签名、公证或独立的发布者身份认证；信任边界仍是本仓库的 HTTPS 发布渠道。
+
+客户端拒绝 DTD、实体声明、外部实体、超限 XML、重复版本及不符合约束的安装包地址或摘要；不会退回未登录 GitHub API。正式版不接收测试版，最低 macOS 要求不满足的版本不会安装。
+
+修改 appcast 发布脚本后，推送 main 会同步当前已公开版本，便于首次初始化。也可在 Actions → Appcast 手动输入已公开 tag 重跑；无需移动 tag、重新构建或替换既有 DMG。原 Homebrew 自动同步保持不变。
+
 ## Homebrew
 
 安装定义独立存放在 [`chenmobuys/homebrew-tap`](https://github.com/chenmobuys/homebrew-tap)，应用源码与 Release 安装包留在 Neylu 仓库：
@@ -76,7 +93,7 @@ brew install --cask chenmobuys/tap/neylu
 
 为 `chenmobuys/homebrew-tap` 添加独立的可写 Deploy key，私钥保存在 Neylu 的 `release` Environment Secret `HOMEBREW_TAP_DEPLOY_KEY`。不得复用个人 SSH 私钥；不需要个人 PAT。
 使用固定 SHA 的 checkout action 管理临时 SSH 凭据与 GitHub 主机校验，结束时清理；源码检出不保存默认 token，工作流不输出私钥。
-默认 `GITHUB_TOKEN` 仅具有读取权限，无法跨仓库写入；部署密钥负责限定仓库的推送。
+Homebrew 工作流的 `GITHUB_TOKEN` 仅具有读取权限，无法跨仓库写入；部署密钥负责限定仓库的推送。
 后续轮换时先替换 tap 公钥与对应 Secret，再运行一次同步验证。
 
 ### 失败与重试
@@ -97,14 +114,14 @@ python3 -m unittest discover -s Tests -p 'test_*.py' -v
 ./build.sh
 ./test-updates.sh
 ./test-runtime.sh
-python3 scripts/release.py validate --tag v0.1.0-alpha.2
+python3 scripts/release.py validate --tag v$(cat VERSION)
 python3 scripts/release.py package --app build/Neylu.app --output dist \
-  --arch arm64 --tag v0.1.0-alpha.2
+  --arch arm64 --tag v$(cat VERSION)
 ```
 
-本地打包后运行 `python3 scripts/release.py verify-assets --tag v0.1.0-alpha.2 --output dist --arch arm64` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
+本地打包后运行 `python3 scripts/release.py verify-assets --tag v$(cat VERSION) --output dist --arch arm64` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
 
-更新器的真实 GitHub 下载回归可运行 `./test-updates.sh --live-github`；在有 GUI 会话的 Mac 上运行 `./test-updates.sh --integration`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
+更新器的真实 GitHub 下载回归可运行 `./test-updates.sh --live-update`；在有 GUI 会话的 Mac 上运行 `./test-updates.sh --integration`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
 
 发布脚本拒绝覆盖同名附件。重新做本地实验时换一个输出目录即可，不必碰运行中的 App。
 源码不包含本机 SQLite、缓存、证书或生成的应用。
