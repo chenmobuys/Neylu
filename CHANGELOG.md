@@ -2,8 +2,23 @@
 
 ## [Unreleased]
 
-- Render update release notes as native formatted Markdown, including headings, lists, emphasis, code, and links.
-- 更新说明使用原生富文本渲染 Markdown，正确显示标题、列表、强调、代码与链接。
+## [0.1.0-alpha.3] - 2026-11-07
+
+<!-- neylu:en -->
+### English
+
+- **Formatted release notes:** The software update window now renders Markdown headings, lists, emphasis, code, and links as native rich text instead of displaying Markdown syntax.
+- **Native appearance:** Release notes follow the system's light or dark appearance and the selected language. Long notes remain scrollable.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **更新说明格式修复：** 软件更新窗口使用原生富文本渲染 Markdown，正确显示标题、列表、强调、代码与链接，不再直接展示 Markdown 源码。
+- **原生外观适配：** 更新说明跟随系统深浅色外观及所选语言，较长内容可滚动查看。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。
 
 ## [0.1.0-alpha.2] - 2026-11-07
 
