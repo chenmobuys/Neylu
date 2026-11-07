@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Render update release notes as native formatted Markdown, including headings, lists, emphasis, code, and links.
+- 更新说明使用原生富文本渲染 Markdown，正确显示标题、列表、强调、代码与链接。
+
 ## [0.1.0-alpha.2] - 2026-11-07
 
 <!-- neylu:en -->

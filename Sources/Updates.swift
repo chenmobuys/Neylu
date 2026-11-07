@@ -156,8 +156,9 @@ final class UpdateController: NSObject, NSWindowDelegate {
         notes.isEditable = false
         notes.isSelectable = true
         notes.drawsBackground = false
-        notes.font = .systemFont(ofSize: 12)
-        notes.textColor = .labelColor
+        notes.textContainerInset = NSSize(width: 0, height: 4)
+        notes.textContainer?.lineFragmentPadding = 0
+        notes.linkTextAttributes = [.foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue]
         scroll.documentView = notes
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
@@ -223,7 +224,9 @@ final class UpdateController: NSObject, NSWindowDelegate {
         else if available != nil { action.title = UpdateFiles.canReplace(Bundle.main.bundleURL) ? L("update.action.install") : L("update.action.download_installer") }
         else { action.title = L("update.action.check_again") }
         secondary.title = working ? L("action.cancel") : (manualInstallation ? L("action.ok") : (available != nil && failure == nil ? L("update.action.later") : L("action.close")))
-        if let available { notes.string = available.releaseNotes(language: AppLanguage.load()) }
+        if let available {
+            notes.textStorage?.setAttributedString(ReleaseNotesRenderer.render(available.releaseNotes(language: AppLanguage.load())))
+        }
         fitWindow()
     }
     private func setWorking(_ value: Bool, message: String, argument: String? = nil) {
@@ -259,7 +262,6 @@ final class UpdateController: NSObject, NSWindowDelegate {
                 available = try AvailableUpdate.check(in: releases, current: version, architecture: Self.architecture)
                 if let update = available {
                     setWorking(false, message: "update.status.available_format", argument: update.version.text)
-                    notes.string = update.releaseNotes(language: AppLanguage.load())
                     scroll.isHidden = update.notes.isEmpty
                 } else {
                     upToDate = true

@@ -42,6 +42,32 @@ func release(_ version: String, arch: String = "arm64", urlOverride: String? = n
 let bilingual = AvailableUpdate(version: ReleaseVersion("0.2.0")!, notes: "<!-- neylu:en -->\nRelease highlights\n<!-- neylu:zh-Hans -->\n更新摘要", page: URL(string: AvailableUpdate.repository)!, package: URL(string: AvailableUpdate.repository)!, digest: "", size: 0, filename: "")
 expect(bilingual.releaseNotes(language: .english) == "Release highlights", "English release notes leaked another language")
 expect(bilingual.releaseNotes(language: .simplifiedChinese) == "更新摘要", "Chinese release notes selection")
+let markdown = ReleaseNotesRenderer.render("### 中文 更新\n\n- **重点：** 内容与 `xattr`。\n- [GitHub](https://github.com/chenmobuys/Neylu)\n\nEnglish *notes* with ~~removed~~ text.")
+expect(markdown.string == "中文 更新\n•\t重点： 内容与 xattr。\n•\tGitHub\nEnglish notes with removed text.", "Markdown blocks or inline syntax rendered incorrectly")
+func attrs(_ text: String) -> [NSAttributedString.Key: Any] {
+    markdown.attributes(at: (markdown.string as NSString).range(of: text).location, effectiveRange: nil)
+}
+expect((attrs("中文")[.font] as! NSFont).pointSize > 12, "Heading typography missing")
+expect(NSFontManager.shared.traits(of: attrs("重点")[.font] as! NSFont).contains(.boldFontMask), "Strong emphasis missing")
+expect(NSFontManager.shared.traits(of: attrs("notes")[.font] as! NSFont).contains(.italicFontMask), "Italic emphasis missing")
+expect((attrs("xattr")[.font] as! NSFont).isFixedPitch, "Inline code is not monospaced")
+expect(attrs("GitHub")[.link] as? URL == URL(string: "https://github.com/chenmobuys/Neylu"), "Release link lost")
+expect(attrs("removed")[.strikethroughStyle] != nil, "Strikethrough missing")
+let unsafe = ReleaseNotesRenderer.render("[local](file:///tmp/test) [script](javascript:alert) ![image](https://example.com/image.png)")
+unsafe.enumerateAttributes(in: NSRange(location: 0, length: unsafe.length)) { values, _, _ in
+    expect(values[.link] == nil && values[.attachment] == nil, "External content or unsafe link enabled")
+}
+let numbered = ReleaseNotesRenderer.render("1. First\n2. Second\n\n```sh\necho Neylu\n```")
+expect(numbered.string.contains("1.\tFirst\n2.\tSecond"), "Ordered list separators missing")
+let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 372, height: 150))
+view.isVerticallyResizable = true
+view.textContainer?.containerSize = NSSize(width: 372, height: CGFloat.greatestFiniteMagnitude)
+let longNotes = ReleaseNotesRenderer.render(Array(repeating: "- **Update:** A native Markdown release note with enough text to wrap onto another line.", count: 20).joined(separator: "\n"))
+view.textStorage?.setAttributedString(longNotes)
+view.layoutManager?.ensureLayout(for: view.textContainer!)
+expect(view.layoutManager!.usedRect(for: view.textContainer!).height > 150, "Long release notes do not produce scrollable content")
+print("PASS native Markdown headings, lists, emphasis, code, safe links and long-note layout")
+
 let current = ReleaseVersion("0.1.0-alpha.3")!
 let releases = [release("0.1.0-alpha.2"), release("0.2.0-alpha.1"), release("0.1.0"), release("1.0.0", draft: true)]
 expect(AvailableUpdate.newest(in: releases, current: current, architecture: "arm64")?.version.text == "0.2.0-alpha.1", "Preview selection")
