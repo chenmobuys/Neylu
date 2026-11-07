@@ -46,7 +46,7 @@
 
 ## 安装
 
-当前版本为 **0.1.0-alpha.1**，面向早期测试，功能和兼容性仍在完善。
+当前版本为 **0.1.0-alpha.2**，面向早期测试，功能和兼容性仍在完善。
 当前未配置 Apple Developer ID，预发布附件只有 ad-hoc 签名、未经 Apple 公证；macOS 可能阻止直接打开下载的应用。
 安装和使用预发布版不需要 Xcode 或 Apple Developer 会员；首次打开可能需要按下方步骤手动允许。
 
@@ -64,7 +64,7 @@
 GitHub 会为每个 Release 附件生成 SHA-256 摘要；后续版本只发布 DMG，不再附加独立校验文件。可在附件旁查看摘要，再核对本地计算结果：
 
 ```sh
-shasum -a 256 Neylu-0.1.0-alpha.1-arm64.dmg
+shasum -a 256 Neylu-0.1.0-alpha.2-arm64.dmg
 ```
 
 ### 首次打开被 macOS 拦截怎么办？

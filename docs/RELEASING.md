@@ -1,7 +1,7 @@
 # 发布维护
 
 目标仓库：`chenmobuys/Neylu`。当前无 Developer ID 证书，先使用 preview 流程。
-首发版本为 0.1.0-alpha.1。Alpha / Beta / RC 创建 GitHub 预发布；自有 Homebrew tap 也支持这些测试版，不以 Developer ID 为前提。
+首发版本为 0.1.0-alpha.1，当前版本为 0.1.0-alpha.2。Alpha / Beta / RC 创建 GitHub 预发布；自有 Homebrew tap 也支持这些测试版，不以 Developer ID 为前提。
 
 ## 一次性配置
 
@@ -14,8 +14,8 @@
 ## 测试版：目前可用
 
 ```sh
-git tag v0.1.0-alpha.1
-git push origin v0.1.0-alpha.1
+git tag v0.1.0-alpha.2
+git push origin v0.1.0-alpha.2
 ```
 
 也可在 Actions → Release → Run workflow 输入已存在的 预发布 tag。
@@ -97,12 +97,12 @@ python3 -m unittest discover -s Tests -p 'test_*.py' -v
 ./build.sh
 ./test-updates.sh
 ./test-runtime.sh
-python3 scripts/release.py validate --tag v0.1.0-alpha.1
+python3 scripts/release.py validate --tag v0.1.0-alpha.2
 python3 scripts/release.py package --app build/Neylu.app --output dist \
-  --arch arm64 --tag v0.1.0-alpha.1
+  --arch arm64 --tag v0.1.0-alpha.2
 ```
 
-本地打包后运行 `python3 scripts/release.py verify-assets --tag v0.1.0-alpha.1 --output dist --arch arm64` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
+本地打包后运行 `python3 scripts/release.py verify-assets --tag v0.1.0-alpha.2 --output dist --arch arm64` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
 
 更新器的真实 GitHub 下载回归可运行 `./test-updates.sh --live-github`；在有 GUI 会话的 Mac 上运行 `./test-updates.sh --integration`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
 

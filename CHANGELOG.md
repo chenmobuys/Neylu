@@ -2,11 +2,25 @@
 
 ## [Unreleased]
 
-- 图表启动时按已有数据铺满，随采样积累逐渐压缩，满两分钟后固定滚动；四张图共用时间范围，无近期数据后恢复自适应展示。
-- Expand startup charts to fit the available history, then settle into a shared rolling two-minute window as samples accumulate.
+## [0.1.0-alpha.2] - 2026-11-07
 
-- 补充中英文 Homebrew 首次启动说明和一条命令完成安装及手动放行的方式；安装完成后直接显示适配实际安装路径的 `xattr` 提示，不自动执行。
-- Document first-launch approval in English and Chinese, with a combined install command. Homebrew now prints the `xattr` instructions using the actual installation path without running them automatically.
+<!-- neylu:en -->
+### English
+
+- **Adaptive startup charts:** Expand the available samples across the chart width, then gradually compress them as data accumulates. After two minutes, use a fixed rolling two-minute window.
+- **Aligned history:** CPU, GPU, memory, and network charts share the same time range. If a long sampling pause leaves no recent history, restart with the adaptive range. Stored samples are unchanged.
+- **First-launch guidance:** Homebrew now prints the `xattr` command with the actual installation path, in English and Chinese. Both READMEs include a combined install-and-approve command and the System Settings alternative. The cask does not execute the command automatically.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **自适应启动图表：** 初期按已有采样铺满宽度，随数据积累逐渐压缩；满两分钟后使用固定的两分钟滚动窗口。
+- **统一时间范围：** CPU、GPU、内存和网络图表共用时间范围；长时间停采、近期数据全部过期后，重新自适应展开。不补写或修改采样数据。
+- **首次启动说明：** Homebrew 安装完成后直接以中英文显示适配实际安装路径的 `xattr` 命令。中英文 README 增加安装与手动放行的组合命令，以及通过系统设置允许打开的方式；不会自动执行放行命令。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。
 
 ## [0.1.0-alpha.1] - 2026-11-07
 

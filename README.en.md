@@ -23,7 +23,7 @@ The preview uses demonstration readings and a documentation-only IP address. In 
 
 ## Install
 
-**Current version: 0.1.0-alpha.1.** Requires macOS 13 or later. This is an early preview, ad hoc signed and not notarized by Apple. You do not need Xcode or an Apple Developer membership to use it.
+**Current version: 0.1.0-alpha.2.** Requires macOS 13 or later. This is an early preview, ad hoc signed and not notarized by Apple. You do not need Xcode or an Apple Developer membership to use it.
 
 1. Download a DMG from [GitHub Releases](https://github.com/chenmobuys/Neylu/releases): choose `arm64` for Apple Silicon or `x86_64` for Intel.
 2. Open the DMG and drag **Neylu.app** into **Applications**.
@@ -32,7 +32,7 @@ The preview uses demonstration readings and a documentation-only IP address. In 
 GitHub provides a SHA-256 digest for each release asset. To verify a downloaded installer, compare that digest with the output of:
 
 ```sh
-shasum -a 256 Neylu-0.1.0-alpha.1-arm64.dmg
+shasum -a 256 Neylu-0.1.0-alpha.2-arm64.dmg
 ```
 
 ### If macOS prevents the app from opening
