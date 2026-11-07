@@ -2,16 +2,33 @@
 
 ## [Unreleased]
 
-- Inspect recorded CPU, GPU, memory, and network samples with synchronized time markers, mouse hover, and Left/Right Arrow navigation.
-- Optionally check GitHub once a day in the background; show an update indicator in settings without automatically opening a window or downloading an installer.
-- Unmount detail charts and their uptime timeline while hidden; preserve background sampling and the existing batched history writes.
-- Add Escape dismissal to utility windows and opaque semantic backgrounds for Reduce Transparency / Increase Contrast; respect Reduce Motion when resizing update windows.
-- 图表支持悬浮与左右方向键查看实际采样，CPU、GPU、内存、网络共用时间指示线。
-- 后台每天检查一次更新，可关闭；设置按钮提示新版本，不自动弹窗、下载或安装。
-- 详情关闭时卸载图表及运行时间视图，保持采样与原有批量历史写入；补充 Escape、减少透明度、提高对比度及减少动态效果的适配。
+## [0.1.0-alpha.4] - 2026-11-07
 
-- Show bundled release notes once after an upgrade, with an always-available Release Notes menu item. First launches establish a version baseline without opening a window; restarts and downgrades do not prompt.
-- 升级后首次启动展示本地更新说明，设置菜单可随时打开更新日志；首次运行仅建立版本基线，重复启动和降级不弹窗。
+<!-- neylu:en -->
+### English
+
+- **Chart inspection:** Hover over CPU, GPU, memory, or network charts to inspect recorded samples with synchronized time markers. Use the Left and Right Arrow keys when a chart is focused. Timestamps include seconds; unavailable GPU counters remain unavailable.
+- **Quiet update checks:** Check GitHub once a day in the background, with an update indicator on the settings button and the available version in its menu. Automatic checks can be disabled. No installer is downloaded or installed automatically.
+- **Release notes after updates:** Bundle the current release notes for offline viewing and show them once after subsequent upgrades. The Release Notes menu item lets you reopen them at any time. First launches establish a version baseline silently; restarts, reinstalls of an already-seen version, and downgrades do not prompt.
+- **Lower hidden-view overhead:** Unmount detail charts and their uptime timeline when the overview is closed; pause the menu bar settings preview while its window is hidden. Monitoring and batched history writes continue.
+- **Native keyboard and accessibility support:** Add Escape dismissal to utility windows, keyboard chart inspection, and more descriptive accessibility text. Respect Reduce Transparency, Increase Contrast, and Reduce Motion where applicable.
+
+This is the first version to track the last launched release. When upgrading from an earlier Alpha, open Release Notes from settings to view this release; automatic post-update notes begin with the next upgrade.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **图表读数：** 悬浮查看 CPU、GPU、内存、网络的实际采样，四项图表共用时间指示线；聚焦后可用左右方向键查看。时间精确到秒，GPU 缺失指标仍显示不可用。
+- **安静检查更新：** 后台每天检查一次 GitHub，发现新版后在设置按钮显示提示点，菜单显示版本号；可关闭自动检查，不会自动下载安装包或安装更新。
+- **升级后的更新说明：** 当前版本说明随 App 打包，支持离线查看；后续升级时只展示一次，设置中的「更新日志」可随时重新打开。首次运行只记录版本，重启、重装已展示版本及降级不重复弹窗。
+- **降低隐藏界面开销：** 详情关闭时卸载图表及开机时间视图，菜单栏设置窗口隐藏后暂停预览更新；保持监控采样和批量历史写入。
+- **原生键盘与辅助功能：** 工具窗口支持 Escape 关闭，图表支持键盘查看，补充辅助朗读信息，并适配减少透明度、提高对比度和减少动态效果设置。
+
+本版首次开始记录已运行版本。从更早的 Alpha 升级后，可在设置的「更新日志」查看本次说明；下一次升级起会自动展示一次。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。
 
 ## [0.1.0-alpha.3] - 2026-11-07
 
