@@ -5,6 +5,39 @@
     <link>https://github.com/chenmobuys/Neylu</link>
     <description>Neylu stable and preview releases</description>
     <item>
+      <title>Neylu 0.1.0-alpha.5</title>
+      <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.5</link>
+      <sparkle:version>5</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-alpha.5</sparkle:shortVersionString>
+      <sparkle:channel>alpha</sparkle:channel>
+      <sparkle:minimumSystemVersion>12.0.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 07 Nov 2026 16:05:40 GMT</pubDate>
+      <description>&gt; 早期测试版：仅 ad-hoc 签名，未经 Apple 公证；首次打开请参阅 README。
+
+&lt;!-- neylu:en --&gt;
+### English
+
+- **Clearer menus:** Keep menu bar display and appearance options at the top, group refresh interval, units, language, login, and automatic update checks under Preferences, and separate update and app information actions. Native menu items and submenus retain their identity as titles and states change.
+- **macOS Monterey support:** Lower the minimum system requirement to macOS 12 for both Apple Silicon and Intel. Use a small bundled login helper on Monterey and AppKit for chart hover tracking. Preserve SMAppService on macOS 13+ and system glass on macOS 26+. macOS 12 has not yet been tested on a physical device.
+- **Reliable update discovery:** Read architecture-specific static appcasts instead of the unauthenticated GitHub REST API, avoiding that API’s shared request limit. Keep the native update interface and existing installer verification without adding the Sparkle framework. Manual and background checks share a short-lived cache and in-flight requests; downloads stop when the last consumer cancels.
+- **Automated distribution:** Verify published installers before generating static feeds and synchronizing Homebrew. Retain stable and preview history and each release’s actual minimum macOS requirement.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions. Earlier Alphas still use the GitHub API to check for updates; if an older version cannot find this release, download the DMG from the release page.
+
+&lt;!-- neylu:zh-Hans --&gt;
+### 中文
+
+- **菜单重新整理：** 菜单栏显示与外观放在顶部，刷新间隔、单位进制、语言、开机启动和自动检查更新归入「偏好设置」，更新与软件信息单独分组。原生菜单和子菜单持续复用，更新文案与状态时不重建。
+- **兼容 macOS Monterey：** Apple Silicon 与 Intel 均支持 macOS 12 及以上；Monterey 使用轻量内置登录辅助应用，图表悬浮读数统一采用 AppKit。13+ 保留 SMAppService，26+ 保留系统玻璃效果。macOS 12 尚未完成实机验证。
+- **改进更新检查：** 使用架构独立的静态 appcast，避免未登录 GitHub REST API 的共享请求限额；保留原生更新界面与现有安装校验，不额外捆绑 Sparkle。手动与后台检查共用短时缓存和进行中的请求，最后一个调用取消时停止下载。
+- **自动发布同步：** 校验已发布安装包后自动生成静态订阅并同步 Homebrew，保留正式版、测试版历史及各版本真实的最低系统要求。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。更早的 Alpha 仍通过 GitHub API 检查更新，若旧版无法发现本次更新，请前往发布页下载 DMG。
+</description>
+      <neylu:sha256>07cd5542acdabcc93ea9f66b7391e853e96e8bd40e1466f85182d143578d6377</neylu:sha256>
+      <enclosure url="https://github.com/chenmobuys/Neylu/releases/download/v0.1.0-alpha.5/Neylu-0.1.0-alpha.5-x86_64.dmg" length="431876" type="application/x-apple-diskimage" />
+    </item>
+    <item>
       <title>Neylu 0.1.0-alpha.4</title>
       <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.4</link>
       <sparkle:version>4</sparkle:version>
