@@ -75,3 +75,20 @@ enum ReleaseNotesRenderer {
         return result
     }
 }
+
+/// A monotonic version watermark avoids duplicate prompts after restarts or downgrades.
+enum ReleaseNotesHistory {
+    static let preferenceKey = "latestLaunchedReleaseVersion"
+
+    static func shouldPresent(current: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let version = ReleaseVersion(current) else { return false }
+        let previous = defaults.string(forKey: preferenceKey).flatMap(ReleaseVersion.init)
+        guard let previous else {
+            defaults.set(current, forKey: preferenceKey)
+            return false // First install (or first launch with this feature): establish a baseline.
+        }
+        guard version > previous else { return false }
+        defaults.set(current, forKey: preferenceKey)
+        return true
+    }
+}

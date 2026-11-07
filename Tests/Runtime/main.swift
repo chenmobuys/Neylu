@@ -261,6 +261,32 @@ if CommandLine.arguments.contains("--self-test") {
             precondition(text.contains { $0.hasPrefix("Version 0.1.0-alpha.") && $0.contains("Build ") })
         }
     }
+    let notesController = ReleaseNotesController(settings: MonitorSettings(), bundle: appBundle)
+    let notesWindow = notesController.window!
+    let bundledNotes = try! String(contentsOf: appBundle.url(forResource: "ReleaseNotes", withExtension: "md")!, encoding: .utf8)
+    for language in [AppLanguage.english, .simplifiedChinese] {
+        UserDefaults.standard.setVolatileDomain(originalArgumentDomain.merging(["appLanguage": language.rawValue]) { _, new in new }, forName: UserDefaults.argumentDomain)
+        notesController.refreshText()
+        notesWindow.contentView!.layoutSubtreeIfNeeded()
+        precondition(notesController.window === notesWindow)
+        let views = allViews(notesWindow.contentView!)
+        let textView = views.compactMap { $0 as? NSTextView }.first!
+        let expected = ReleaseNotesRenderer.render(ReleaseNotesText.localized(bundledNotes, language: language))
+        precondition(textView.string == expected.string && !textView.string.isEmpty)
+        precondition(!textView.isEditable && textView.isSelectable)
+        precondition(notesWindow.title == L10n.text("menu.release_notes", language: language))
+        precondition(views.compactMap { ($0 as? NSButton)?.title }.contains(L10n.text("whats_new.continue", language: language)))
+        precondition(views.compactMap { $0 as? NSScrollView }.first!.hasVerticalScroller)
+        if language == .english {
+            precondition(textView.string.range(of: #"[\u4e00-\u9fff]"#, options: .regularExpression) == nil)
+        }
+        for theme in [NSAppearance.Name.aqua, .darkAqua] {
+            notesWindow.appearance = NSAppearance(named: theme)
+            textView.layoutManager!.ensureLayout(for: textView.textContainer!)
+            precondition(textView.layoutManager!.usedRect(for: textView.textContainer!).height > 0)
+        }
+    }
+    print("PASS: installed-version release notes load offline, render localized Markdown and retain native scrolling and window identity across appearance/language changes")
     UserDefaults.standard.setVolatileDomain(originalArgumentDomain, forName: UserDefaults.argumentDomain)
     print("PASS: the same native About window switches all owned labels between English and Simplified Chinese")
 

@@ -123,3 +123,10 @@
 "uptime.format" = "Uptime: %@";
 "uptime.hours_minutes_format" = "%@h %@m";
 "uptime.unavailable" = "Uptime: —";
+"menu.release_notes" = "Release Notes";
+"whats_new.title" = "What’s New";
+"whats_new.updated_format" = "Updated to %@";
+"whats_new.version_format" = "Version %@";
+"whats_new.full_changelog" = "Full Changelog";
+"whats_new.continue" = "Get Started";
+"whats_new.unavailable" = "Release notes are unavailable. View the full changelog for details.";

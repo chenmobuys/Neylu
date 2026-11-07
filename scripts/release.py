@@ -152,7 +152,7 @@ def check(app, version, arch, require_notarization=True):
     helper_arch = subprocess.check_output(["lipo", "-archs", str(helper)], text=True).strip()
     if helper_arch != arch:
         raise ValueError(f"Unexpected updater architecture: {helper_arch}; expected {arch}")
-    for name in ["AppIcon.icns", "LICENSE", "THIRD_PARTY_NOTICES.md"]:
+    for name in ["AppIcon.icns", "LICENSE", "THIRD_PARTY_NOTICES.md", "ReleaseNotes.md"]:
         if not (app / "Contents/Resources" / name).is_file():
             raise ValueError(f"Missing resource: {name}")
     for language in ["en", "zh-Hans"]:

@@ -119,7 +119,7 @@ class ReleaseTests(unittest.TestCase):
                 catalog = resources / (language+'.lproj') / 'Localizable.strings'
                 catalog.parent.mkdir()
                 catalog.write_text('"fixture.key" = "Fixture";')
-            for name in ['AppIcon.icns', 'LICENSE', 'THIRD_PARTY_NOTICES.md']:
+            for name in ['AppIcon.icns', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'ReleaseNotes.md']:
                 (resources / name).write_bytes(b'fixture')
             (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(dict(
                 CFBundleShortVersionString='1.2.3', NeyluReleaseVersion='1.2.3',

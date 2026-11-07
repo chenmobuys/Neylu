@@ -123,3 +123,10 @@
 "uptime.format" = "开机时间：%@";
 "uptime.hours_minutes_format" = "%@ 小时 %@ 分钟";
 "uptime.unavailable" = "开机时间：—";
+"menu.release_notes" = "更新日志";
+"whats_new.title" = "本次更新";
+"whats_new.updated_format" = "已更新至 %@";
+"whats_new.version_format" = "版本 %@";
+"whats_new.full_changelog" = "完整更新日志";
+"whats_new.continue" = "开始使用";
+"whats_new.unavailable" = "暂无本地更新说明，请查看完整更新日志。";

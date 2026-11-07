@@ -58,6 +58,7 @@ for language in en zh-Hans; do
   mkdir -p "$app_path/Contents/Resources/$language.lproj"
   cp "Resources/$language.lproj/Localizable.strings" "$app_path/Contents/Resources/$language.lproj/"
 done
+python3 scripts/release.py notes --tag "v$release_version" --file "$app_path/Contents/Resources/ReleaseNotes.md"
 cp LICENSE THIRD_PARTY_NOTICES.md "$app_path/Contents/Resources/"
 codesign --force --sign - "$app_path"
 codesign --verify --strict "$app_path"

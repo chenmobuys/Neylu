@@ -277,6 +277,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         update()
         restartSamplingTimer()
+        if !CommandLine.arguments.contains("--screenshot-mode"),
+           let version = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String,
+           ReleaseNotesHistory.shouldPresent(current: version) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.showReleaseNotes(afterUpdate: true)
+            }
+        }
         if CommandLine.arguments.contains("--show-updates") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.checkForUpdates(nil) }
         }
@@ -393,6 +401,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor @objc func checkForUpdates(_ sender: Any?) {
         hideDetails()
         updates.present()
+    }
+    private var releaseNotes: ReleaseNotesController?
+    @objc func showReleaseNotes(_ sender: Any?) { showReleaseNotes(afterUpdate: false) }
+    private func showReleaseNotes(afterUpdate: Bool) {
+        hideDetails()
+        if releaseNotes == nil { releaseNotes = ReleaseNotesController(settings: model.settings) }
+        releaseNotes?.present(afterUpdate: afterUpdate)
     }
     private var about: AboutController?
     @objc func showAbout(_ sender: Any?) {

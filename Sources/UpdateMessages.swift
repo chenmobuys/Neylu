@@ -18,6 +18,12 @@ extension UpdateFailure {
 
 extension AvailableUpdate {
     func releaseNotes(language: AppLanguage) -> String {
+        ReleaseNotesText.localized(notes, language: language)
+    }
+}
+
+enum ReleaseNotesText {
+    static func localized(_ notes: String, language: AppLanguage) -> String {
         let marker = language.resolved() == .simplifiedChinese ? "<!-- neylu:zh-Hans -->" : "<!-- neylu:en -->"
         guard let start = notes.range(of: marker) else { return notes }
         let remainder = notes[start.upperBound...]

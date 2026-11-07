@@ -168,6 +168,10 @@ struct SettingsMenuButton: NSViewRepresentable {
             update.tag = 13
             update.target = self
             menu.addItem(update)
+            let notes = NSMenuItem(title: L("menu.release_notes"), action: #selector(showReleaseNotes), keyEquivalent: "")
+            notes.tag = 14
+            notes.target = self
+            menu.addItem(notes)
             let about = NSMenuItem(title: L("menu.about"), action: #selector(showAbout), keyEquivalent: "")
             about.tag = 11
             about.target = self
@@ -184,7 +188,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (2, "menu.units"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates")] {
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes")] {
                 menu.item(withTag: tag)?.title = L(key)
                 menu.item(withTag: tag)?.submenu?.title = L(key)
             }
@@ -245,6 +249,9 @@ struct SettingsMenuButton: NSViewRepresentable {
         }
         @objc private func checkForUpdates() {
             NSApp.sendAction(#selector(AppDelegate.checkForUpdates(_:)), to: NSApp.delegate, from: self)
+        }
+        @objc private func showReleaseNotes() {
+            NSApp.sendAction(#selector(AppDelegate.showReleaseNotes(_:)), to: NSApp.delegate, from: self)
         }
         @objc private func showAbout() {
             NSApp.sendAction(#selector(AppDelegate.showAbout(_:)), to: NSApp.delegate, from: self)

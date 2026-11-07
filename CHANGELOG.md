@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Show bundled release notes once after an upgrade, with an always-available Release Notes menu item. First launches establish a version baseline without opening a window; restarts and downgrades do not prompt.
+- 升级后首次启动展示本地更新说明，设置菜单可随时打开更新日志；首次运行仅建立版本基线，重复启动和降级不弹窗。
+
 ## [0.1.0-alpha.3] - 2026-11-07
 
 <!-- neylu:en -->

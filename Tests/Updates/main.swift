@@ -68,6 +68,21 @@ view.layoutManager?.ensureLayout(for: view.textContainer!)
 expect(view.layoutManager!.usedRect(for: view.textContainer!).height > 150, "Long release notes do not produce scrollable content")
 print("PASS native Markdown headings, lists, emphasis, code, safe links and long-note layout")
 
+let notesSuite = "Neylu-release-notes-test-" + UUID().uuidString
+let notesDefaults = UserDefaults(suiteName: notesSuite)!
+defer { notesDefaults.removePersistentDomain(forName: notesSuite) }
+expect(!ReleaseNotesHistory.shouldPresent(current: "invalid", defaults: notesDefaults), "Invalid launch version prompted")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.3", defaults: notesDefaults), "First launch must stay silent")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.3", defaults: notesDefaults), "Restart prompted")
+expect(ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.4", defaults: UserDefaults(suiteName: notesSuite)!), "Upgrade did not prompt using persisted state")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.4", defaults: notesDefaults), "Upgrade prompted twice")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.3", defaults: notesDefaults), "Downgrade prompted")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.4", defaults: notesDefaults), "Reinstall of an already-seen version prompted")
+expect(ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.10", defaults: notesDefaults), "Alpha iteration compared lexically")
+expect(ReleaseNotesHistory.shouldPresent(current: "0.1.0", defaults: notesDefaults), "Stable upgrade did not prompt")
+expect(!ReleaseNotesHistory.shouldPresent(current: "0.1.0-alpha.11", defaults: notesDefaults), "Preview downgrade prompted after stable")
+print("PASS release notes first-launch baseline, persistent once-per-upgrade prompts, restarts, reinstalls and downgrades")
+
 let current = ReleaseVersion("0.1.0-alpha.3")!
 let releases = [release("0.1.0-alpha.2"), release("0.2.0-alpha.1"), release("0.1.0"), release("1.0.0", draft: true)]
 expect(AvailableUpdate.newest(in: releases, current: current, architecture: "arm64")?.version.text == "0.2.0-alpha.1", "Preview selection")
