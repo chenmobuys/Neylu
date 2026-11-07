@@ -130,3 +130,6 @@
 "whats_new.full_changelog" = "完整更新日志";
 "whats_new.continue" = "开始使用";
 "whats_new.unavailable" = "暂无本地更新说明，请查看完整更新日志。";
+"menu.automatic_updates" = "自动检查更新";
+"menu.update_available_format" = "发现新版本 %@…";
+"chart.inspect_hint" = "悬浮查看实际采样值，或聚焦后使用左右方向键。";

@@ -39,6 +39,15 @@ final class MonitorSettings: ObservableObject {
             onMenuBarChange?()
         }
     }
+    @Published var availableUpdateVersion: String?
+    @Published var automaticUpdateChecks = UserDefaults.standard.object(forKey: "automaticUpdateChecks") as? Bool ?? true {
+        didSet {
+            guard automaticUpdateChecks != oldValue else { return }
+            UserDefaults.standard.set(automaticUpdateChecks, forKey: "automaticUpdateChecks")
+            onAutomaticUpdateChange?()
+        }
+    }
+    var onAutomaticUpdateChange: (() -> Void)?
     var onMenuBarChange: (() -> Void)?
     var onLanguageChange: (() -> Void)?
     var onRefreshIntervalChange: (() -> Void)?
@@ -86,6 +95,7 @@ struct SettingsMenuButton: NSViewRepresentable {
         context.coordinator.updateTitles(view.menu)
         view.toolTip = L("menu.settings_hint")
         view.setAccessibilityLabel(L("menu.more_settings"))
+        view.setAccessibilityValue(settings.availableUpdateVersion.map { String(format: L("menu.update_available_format"), $0) })
     }
     final class Coordinator: NSObject, NSMenuDelegate {
         var settings: MonitorSettings
@@ -168,6 +178,10 @@ struct SettingsMenuButton: NSViewRepresentable {
             update.tag = 13
             update.target = self
             menu.addItem(update)
+            let automatic = NSMenuItem(title: L("menu.automatic_updates"), action: #selector(toggleAutomaticUpdates), keyEquivalent: "")
+            automatic.tag = 15
+            automatic.target = self
+            menu.addItem(automatic)
             let notes = NSMenuItem(title: L("menu.release_notes"), action: #selector(showReleaseNotes), keyEquivalent: "")
             notes.tag = 14
             notes.target = self
@@ -188,10 +202,14 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (2, "menu.units"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes")] {
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates")] {
                 menu.item(withTag: tag)?.title = L(key)
                 menu.item(withTag: tag)?.submenu?.title = L(key)
             }
+            if let version = settings.availableUpdateVersion {
+                menu.item(withTag: 13)?.title = String(format: L("menu.update_available_format"), version)
+            }
+            menu.item(withTag: 15)?.state = settings.automaticUpdateChecks ? .on : .off
             for item in menu.item(withTag: 3)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? String, let choice = AppearanceMode(rawValue: raw) { item.title = choice.title }
             }
@@ -247,6 +265,7 @@ struct SettingsMenuButton: NSViewRepresentable {
         @objc private func showMenuBarSettings() {
             NSApp.sendAction(#selector(AppDelegate.showMenuBarSettings(_:)), to: NSApp.delegate, from: self)
         }
+        @objc private func toggleAutomaticUpdates() { settings.automaticUpdateChecks.toggle() }
         @objc private func checkForUpdates() {
             NSApp.sendAction(#selector(AppDelegate.checkForUpdates(_:)), to: NSApp.delegate, from: self)
         }
@@ -269,6 +288,12 @@ struct MonitorFooter: View {
             }
             Spacer()
             SettingsMenuButton(settings: settings).frame(width: 26, height: 24)
+                .overlay(alignment: .topTrailing) {
+                    if settings.availableUpdateVersion != nil {
+                        Circle().fill(.tint).frame(width: 5, height: 5).allowsHitTesting(false).accessibilityHidden(true)
+                    }
+                }
+                .accessibilityHint(settings.availableUpdateVersion.map { String(format: L("menu.update_available_format"), $0) } ?? L("menu.settings_hint"))
         }
     }
     private var uptime: String {

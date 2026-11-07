@@ -103,6 +103,8 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 
 ### 检查与安装更新
 
+默认每天后台检查一次；有新版时在详情设置按钮显示提示点，菜单显示版本号，不自动弹窗或下载安装。可关闭「自动检查更新」。图表支持悬浮或聚焦后按左右方向键查看实际采样，四项指标共用时间指示线；Escape 关闭详情和工具窗口。
+
 在详情「…」或菜单栏右键菜单选择 **检查更新…**。发现适合当前架构的新版本后，点击 **立即更新**，Neylu 会下载 GitHub Releases 的 DMG，核对 GitHub 提供的 SHA-256 摘要、应用版本、架构及代码签名，再正常退出、替换并重启。历史记录与偏好设置保存在 App 外，会继续保留。替换、系统启动请求失败，或新版在启动后的短暂观察期内退出时，恢复原应用。
 
 - Alpha / Beta / RC 版本会检查后续测试版和正式版；正式版只接收正式更新，不降级。
@@ -164,7 +166,7 @@ GPU 指标完整时三个值各按 1/3 堆叠，总高度表示平均值；仅�
 
 ## 隐私与历史
 
-仅在手动检查或安装更新时访问 GitHub；不收集遥测、不上传监控数据、不读取进程内容、不要求管理员权限。
+默认每天在后台检查一次 GitHub 更新，可在设置菜单关闭；手动检查、安装更新及打开项目链接时也会访问 GitHub。不收集遥测、不上传监控数据、不读取进程内容、不要求管理员权限。
 CPU/GPU/内存/网络历史保存在 `~/Library/Application Support/Neylu/history.sqlite`，保留 24 小时。目录仅当前用户可访问，数据库及 WAL 文件权限为 0600。
 每 30 秒批量写入，退出和睡眠前保存；强制结束或断电最多可能丢失约 30 秒加一次采样间隔的未写入记录。
 开机时间来自内核 `kern.boottime`，包括睡眠。
@@ -178,6 +180,7 @@ CPU/GPU/内存/网络历史保存在 `~/Library/Application Support/Neylu/histor
 open build/Neylu.app
 ./test-history.sh
 ./test-updates.sh
+./test-performance.sh # 可选：本机采样与离屏渲染基准，不代表整机能耗
 python3 -m unittest discover -s Tests -p 'test_*.py' -v
 ./test-runtime.sh
 ```

@@ -130,3 +130,6 @@
 "whats_new.full_changelog" = "Full Changelog";
 "whats_new.continue" = "Get Started";
 "whats_new.unavailable" = "Release notes are unavailable. View the full changelog for details.";
+"menu.automatic_updates" = "Automatically Check for Updates";
+"menu.update_available_format" = "Update Available: %@…";
+"chart.inspect_hint" = "Hover to inspect a recorded sample, or use the Left and Right Arrow keys when focused.";

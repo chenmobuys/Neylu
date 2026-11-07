@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Inspect recorded CPU, GPU, memory, and network samples with synchronized time markers, mouse hover, and Left/Right Arrow navigation.
+- Optionally check GitHub once a day in the background; show an update indicator in settings without automatically opening a window or downloading an installer.
+- Unmount detail charts and their uptime timeline while hidden; preserve background sampling and the existing batched history writes.
+- Add Escape dismissal to utility windows and opaque semantic backgrounds for Reduce Transparency / Increase Contrast; respect Reduce Motion when resizing update windows.
+- 图表支持悬浮与左右方向键查看实际采样，CPU、GPU、内存、网络共用时间指示线。
+- 后台每天检查一次更新，可关闭；设置按钮提示新版本，不自动弹窗、下载或安装。
+- 详情关闭时卸载图表及运行时间视图，保持采样与原有批量历史写入；补充 Escape、减少透明度、提高对比度及减少动态效果的适配。
+
 - Show bundled release notes once after an upgrade, with an always-available Release Notes menu item. First launches establish a version baseline without opening a window; restarts and downgrades do not prompt.
 - 升级后首次启动展示本地更新说明，设置菜单可随时打开更新日志；首次运行仅建立版本基线，重复启动和降级不弹窗。
 

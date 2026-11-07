@@ -30,8 +30,16 @@ final class DetailSurfaceContainer: NSView {
         layer?.masksToBounds = true
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    func refreshAccessibility() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+                ? NSColor.windowBackgroundColor.cgColor : NSColor.clear.cgColor
+        }
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); refreshAccessibility() }
     override func layout() {
         super.layout()
+        refreshAccessibility()
         window?.invalidateShadow()
     }
 }
@@ -49,19 +57,24 @@ final class AdaptiveGlassView: NSGlassEffectView {
         super.viewDidChangeEffectiveAppearance()
         updateMaterialTint()
     }
-    private func updateMaterialTint() {
+    func updateMaterialTint() {
         let dark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         // Keep system glass compositing. A semantic dark tint improves contrast
         // over bright windows without introducing a fixed custom background.
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            tintColor = dark ? NSColor.windowBackgroundColor.withAlphaComponent(0.6) : nil
+            tintColor = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+                ? NSColor.windowBackgroundColor : (dark ? NSColor.windowBackgroundColor.withAlphaComponent(0.6) : nil)
         }
     }
 }
 
 final class DetailPanel: NSPanel {
+    var onHide: (() -> Void)?
     override var canBecomeKey: Bool { true }
+    override func orderOut(_ sender: Any?) { super.orderOut(sender); onHide?() }
+    override func cancelOperation(_ sender: Any?) { orderOut(sender) }
 }
+
 
 func detailFrame(button: NSRect, visible: NSRect, content: NSSize) -> NSRect {
     let width = min(content.width, visible.width - 16)
@@ -127,7 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var item: NSStatusItem!
     private var meter: MeterView!
     private let sampling = SamplingService()
-    private let model = MonitorModel()
+    private let model: MonitorModel
+    init(model: MonitorModel = MonitorModel()) {
+        self.model = model
+        super.init()
+    }
     private var panel: DetailPanel!
     private var hosting: NSHostingController<DetailView>!
     private var menuBarSettings: MenuBarSettingsController?
@@ -182,8 +199,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.toolTip = L("app.status_tooltip")
         button.setAccessibilityRole(.button)
+        model.layout.isVisible = false
         hosting = NSHostingController(rootView: DetailView(model: model))
         panel = DetailPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.onHide = { [weak self] in self?.model.layout.isVisible = false }
+        panel.autorecalculatesKeyViewLoop = true
         panel.title = "Neylu"
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
@@ -249,6 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.item.button?.setAccessibilityLabel(self.meter.accessibilitySummary)
             DispatchQueue.main.async { self.updates.refreshLanguage() }
         }
+        model.settings.onAutomaticUpdateChange = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.model.settings.automaticUpdateChecks { self.backgroundUpdates.start() }
+                else { self.backgroundUpdates.stop() }
+            }
+        }
         model.diskActions.onFinish = { [weak self] in self?.volumesChanged() }
         model.layout.onSizeChange = { [weak self] in
             DispatchQueue.main.async { self?.resizeVisibleDetails() }
@@ -277,6 +304,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         update()
         restartSamplingTimer()
+        if !CommandLine.arguments.contains("--screenshot-mode") {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.updates.onDiscovery = { [weak owner = self] update in owner?.backgroundUpdates.accept(update) }
+                self.backgroundUpdates.start()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(accessibilityDisplayChanged), name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
         if !CommandLine.arguments.contains("--screenshot-mode"),
            let version = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String,
            ReleaseNotesHistory.shouldPresent(current: version) {
@@ -306,10 +341,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer = replacement
         RunLoop.main.add(replacement, forMode: .common)
     }
+    @objc private func accessibilityDisplayChanged() {
+        (panel?.contentView as? DetailSurfaceContainer)?.refreshAccessibility()
+        if #available(macOS 26.0, *), let glass = panel?.contentView?.subviews.first as? AdaptiveGlassView { glass.updateMaterialTint() }
+    }
     private func applyAppearance() {
         guard !CommandLine.arguments.contains("--screenshot-mode") else { return }
         NSApp.appearance = model.settings.appearanceMode.appKitAppearance
         panel?.invalidateShadow()
+        accessibilityDisplayChanged()
     }
     private func applySettings() {
         meter.basis = model.basis
@@ -385,19 +425,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusResize.cancel()
         sampling.suspend()
         model.saveHistoryNow()
+        MainActor.assumeIsolated { backgroundUpdates.stop() }
     }
     @objc private func prepareForSleep() {
         timer?.invalidate()
         sampling.suspend()
+        MainActor.assumeIsolated { backgroundUpdates.stop() }
         hideDetails()
         model.saveHistoryNow()
     }
     @objc private func wake() {
+        if !CommandLine.arguments.contains("--screenshot-mode") { MainActor.assumeIsolated { backgroundUpdates.start() } }
         if CommandLine.arguments.contains("--screenshot-mode") { update() }
         else { sampling.resumeAfterWake() }
         restartSamplingTimer()
     }
     @MainActor private lazy var updates = UpdateController()
+    @MainActor private lazy var backgroundUpdates = BackgroundUpdateChecker(settings: model.settings)
     @MainActor @objc func checkForUpdates(_ sender: Any?) {
         hideDetails()
         updates.present()
@@ -434,8 +478,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func hideDetails() { panel.orderOut(nil) }
     @objc private func statusItemClicked() {
-        guard let event = NSApp.currentEvent, let button = item.button else { return }
-        if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
+        guard let button = item.button else { return }
+        if let event = NSApp.currentEvent, event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
             hideDetails()
             // Set the menu itself: contextual menus may inherit the status
             // window's dark appearance even if its button is explicitly light.
@@ -449,6 +493,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleDetails() {
         guard let button = item.button, let statusWindow = button.window else { return }
         if panel.isVisible { panel.orderOut(nil); return }
+        model.layout.isVisible = true
+        hosting.view.layoutSubtreeIfNeeded()
         let loginEnabled = ServiceManagement.SMAppService.mainApp.status == .enabled
         if model.loginEnabled != loginEnabled { model.loginEnabled = loginEnabled }
         let mouse = NSEvent.mouseLocation

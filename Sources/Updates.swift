@@ -83,6 +83,7 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
 
 @MainActor
 final class UpdateController: NSObject, NSWindowDelegate {
+    var onDiscovery: ((AvailableUpdate?) -> Void)?
     private var window: NSWindow?
     private let subtitle = NSTextField(wrappingLabelWithString: "")
     private let scroll = NSScrollView()
@@ -117,7 +118,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         if !working { check() }
     }
     private func makeWindow() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 156),
+        let window = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 156),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -204,7 +205,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         let height = max(144, content.fittingSize.height + 44)
         var frame = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 420, height: height))
         frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
-        window.setFrame(frame, display: true, animate: window.isVisible)
+        window.setFrame(frame, display: true, animate: window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
     // Keep native controls intact while updating all owned text on a language change.
     func refreshLanguage() {
@@ -247,19 +248,10 @@ final class UpdateController: NSObject, NSWindowDelegate {
         scroll.isHidden = true
         setWorking(true, message: "update.status.checking")
         task = Task {
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Neylu-check-" + UUID().uuidString)
             do {
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-                defer { try? FileManager.default.removeItem(at: folder) }
-                let file = folder.appendingPathComponent("releases.json")
-                // /latest excludes prereleases. Alpha users follow newer previews;
-                // stable users only see stable releases. Sort by SemVer, not date.
-                try await UpdateDownload(destination: file, limit: 2 * 1024 * 1024, progress: { _ in }).fetch(
-                    URL(string: "https://api.github.com/repos/chenmobuys/Neylu/releases?per_page=100")!)
-                try Task.checkCancellation()
                 guard let version = ReleaseVersion(current) else { throw UpdateFailure.metadata }
-                let releases = try JSONDecoder().decode([GitHubRelease].self, from: Data(contentsOf: file))
-                available = try AvailableUpdate.check(in: releases, current: version, architecture: Self.architecture)
+                available = try await UpdateDiscovery.find(current: version, architecture: Self.architecture)
+                onDiscovery?(available)
                 if let update = available {
                     setWorking(false, message: "update.status.available_format", argument: update.version.text)
                     scroll.isHidden = update.notes.isEmpty

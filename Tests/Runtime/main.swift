@@ -5,6 +5,72 @@ import ServiceManagement
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
+    let inspectStart = Date(timeIntervalSince1970: 1000)
+    let inspectPoints = [CPUPoint(timestamp: inspectStart, user: 8, system: 5), CPUPoint(timestamp: inspectStart.addingTimeInterval(2), user: 20, system: 10)]
+    precondition(ChartReadout.nearest(inspectPoints, at: inspectStart.addingTimeInterval(1.8), timestamp: \.timestamp) == inspectPoints[1])
+    precondition(ChartReadout.nearest(inspectPoints, at: nil, timestamp: \.timestamp) == nil)
+    let inspectWindow = HistoryWindow(earliest: inspectStart.addingTimeInterval(-1), now: inspectStart)
+    precondition(ChartReadout.nearest(inspectPoints, at: inspectStart.addingTimeInterval(1.8), timestamp: \.timestamp, window: inspectWindow) == inspectPoints[0])
+    precondition(ChartReadout.cpu([], at: inspectStart, language: .english) == nil)
+    precondition(ChartReadout.cpu(inspectPoints, at: inspectStart, language: .english)!.value.contains("13%"))
+    let absentGPU = ChartReadout.gpu([GPUPoint(timestamp: inspectStart, total: 0, renderer: nil, tiler: 0)], at: inspectStart, language: .english)!
+    precondition(absentGPU.value.contains("—") && absentGPU.value.contains("0%"))
+    precondition(ChartReadout.memory([MemoryPoint(timestamp: inspectStart, used: 1024, total: 2048)], at: inspectStart, basis: .binary)!.value.contains("KiB"))
+    precondition(UpdateCheckSchedule.remaining(lastAttempt: nil, now: inspectStart) == 0)
+    precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart.addingTimeInterval(1), now: inspectStart) == 0)
+    precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart, now: inspectStart.addingTimeInterval(100)) == 86300)
+    precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart, now: inspectStart.addingTimeInterval(86400)) == 0)
+    print("PASS: inspection uses actual nearest samples, missing GPU counters stay unavailable, units and daily scheduling handle boundary cases")
+    MainActor.assumeIsolated {
+        let suite = "Neylu-background-updates-test-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = MonitorSettings()
+        settings.automaticUpdateChecks = true
+        var checks = 0
+        let candidate = AvailableUpdate(version: ReleaseVersion("0.1.0-alpha.10")!, notes: "", page: URL(string: AvailableUpdate.repository)!, package: URL(string: AvailableUpdate.repository)!, digest: "", size: 0, filename: "")
+        let checker = BackgroundUpdateChecker(settings: settings, defaults: defaults, version: "0.1.0-alpha.3", check: { _ in checks += 1; return candidate })
+        checker.checkIfDue(now: inspectStart)
+        let deadline = Date().addingTimeInterval(2)
+        while settings.availableUpdateVersion == nil && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(settings.availableUpdateVersion == candidate.version.text && checks == 1)
+        checker.checkIfDue(now: inspectStart.addingTimeInterval(100))
+        precondition(checks == 1)
+        checker.stop()
+        let freshSettings = MonitorSettings()
+        freshSettings.automaticUpdateChecks = true
+        let restored = BackgroundUpdateChecker(settings: freshSettings, defaults: defaults, version: "0.1.0-alpha.3", check: { _ in checks += 1; return nil })
+        precondition(freshSettings.availableUpdateVersion == candidate.version.text)
+        restored.checkIfDue(now: inspectStart.addingTimeInterval(86400))
+        let clearDeadline = Date().addingTimeInterval(2)
+        while freshSettings.availableUpdateVersion != nil && Date() < clearDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(freshSettings.availableUpdateVersion == nil && checks == 2)
+        restored.stop()
+        freshSettings.automaticUpdateChecks = false
+        restored.checkIfDue(now: inspectStart.addingTimeInterval(172800))
+        precondition(checks == 2)
+        var completeCancelled: CheckedContinuation<AvailableUpdate?, Error>?
+        let cancelled = BackgroundUpdateChecker(settings: settings, defaults: defaults, version: "0.1.0-alpha.3", check: { _ in
+            try await withCheckedThrowingContinuation { completeCancelled = $0 }
+        })
+        settings.availableUpdateVersion = nil
+        cancelled.checkIfDue(now: inspectStart.addingTimeInterval(172800))
+        let cancellationDeadline = Date().addingTimeInterval(2)
+        while completeCancelled == nil && Date() < cancellationDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(completeCancelled != nil)
+        cancelled.stop()
+        completeCancelled?.resume(returning: candidate)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+        precondition(settings.availableUpdateVersion == nil) // A cancelled result must not restore a stale badge.
+        defaults.removeObject(forKey: BackgroundUpdateChecker.attemptKey)
+        let failed = BackgroundUpdateChecker(settings: settings, defaults: defaults, version: "0.1.0-alpha.3", check: { _ in checks += 1; throw URLError(.notConnectedToInternet) })
+        failed.checkIfDue(now: inspectStart.addingTimeInterval(172800))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        failed.checkIfDue(now: inspectStart.addingTimeInterval(172801))
+        precondition(checks == 3)
+        failed.stop()
+        print("PASS: background updates cache valid versions, coalesce daily checks, clear stale badges, respect opt-out and back off offline failures")
+    }
     let recoveryModel = MonitorModel(persistHistory: false)
     recoveryModel.historySaveFailed("disk full")
     precondition(recoveryModel.error != nil)
@@ -243,6 +309,29 @@ if CommandLine.arguments.contains("--self-test") {
     NSApp.setActivationPolicy(.accessory)
     let originalArgumentDomain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
     let appBundle = Bundle(url: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/Neylu.app"))!
+    let visibilityModel = MonitorModel(persistHistory: false)
+    visibilityModel.layout.isVisible = false
+    let hiddenHost = NSHostingController(rootView: DetailView(model: visibilityModel))
+    hiddenHost.view.frame = NSRect(x: 0, y: 0, width: 380, height: 600)
+    hiddenHost.view.layoutSubtreeIfNeeded()
+    precondition(hiddenHost.view.fittingSize.width == 380)
+    visibilityModel.layout.isVisible = true
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    hiddenHost.view.layoutSubtreeIfNeeded()
+    precondition(hiddenHost.view.fittingSize.width == 380)
+    let escapeWindow = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+    escapeWindow.isReleasedWhenClosed = false
+    escapeWindow.orderFront(nil)
+    precondition(escapeWindow.isVisible)
+    escapeWindow.cancelOperation(nil)
+    precondition(!escapeWindow.isVisible)
+    let settingsCoordinator = SettingsMenuButton.Coordinator(settings: visibilityModel.settings)
+    visibilityModel.settings.availableUpdateVersion = "0.1.0-alpha.10"
+    let badgeMenu = settingsCoordinator.makeMenu(pullsDown: false)
+    settingsCoordinator.updateTitles(badgeMenu)
+    precondition(badgeMenu.item(withTag: 13)!.title.contains("0.1.0-alpha.10"))
+    precondition(badgeMenu.item(withTag: 15)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
+    print("PASS: details unmount/reopen at fixed width, utility windows dismiss on Escape and native update menus expose badge/version and opt-out state")
     let aboutController = AboutController(settings: MonitorSettings(), bundle: appBundle)
     func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }
     for language in [AppLanguage.english, .simplifiedChinese] {

@@ -404,6 +404,7 @@ struct GPUChart: View {
 
 // Only topology/layout changes resize the panel; regular samples keep controls intact.
 final class DetailLayout: ObservableObject {
+    @Published var isVisible = true
     @Published var maximumMetricsHeight: CGFloat = 900 {
         didSet { if maximumMetricsHeight != oldValue { onSizeChange?() } }
     }
@@ -432,6 +433,12 @@ struct DetailView: View {
         self.layout = model.layout
     }
     var body: some View {
+        Group {
+            if layout.isVisible { contents }
+            else { Color.clear.frame(width: 380, height: layout.metricsHeight + 110) }
+        }
+    }
+    private var contents: some View {
         VStack(spacing: 0) {
             Text(L("overview.title"))
                 .font(.system(size: 12, weight: .medium))
@@ -460,11 +467,14 @@ struct MetricsOverviewView: View {
     @ObservedObject var model: MonitorModel
     @ObservedObject var settings: MonitorSettings
     @ObservedObject private var diskActions: DiskActions
-    init(model: MonitorModel, settings: MonitorSettings) {
+    init(model: MonitorModel, settings: MonitorSettings, inspection: Date? = nil) {
         self.model = model
         self.settings = settings
         self.diskActions = model.diskActions
+        self._inspection = State(initialValue: inspection)
     }
+    @State private var inspection: Date?
+    private var inspectionDates: [Date] { model.history.map(\.timestamp) + model.gpuHistory.map(\.timestamp) + model.memoryHistory.map(\.timestamp) + model.networkHistory.map(\.timestamp) }
     private var r: Reading { model.reading }
     private let columnGap: CGFloat = 22
     var body: some View {
@@ -497,7 +507,8 @@ struct MetricsOverviewView: View {
             heading(MenuBarMetric.cpu.symbol, "CPU", value: percent(r.cpu, ready: r.cpuReady))
             fact(L("metrics.temperature"), value: r.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? (r.cpuTemperatureSupported ? L("metrics.unavailable") : L("metrics.unsupported")))
                 .help(r.cpuTemperature != nil ? L("temperature.sensor_hint") : (r.cpuTemperatureSupported ? L("temperature.no_sensor") : L("temperature.unsupported_device")))
-            CPUChart(points: model.history, window: model.chartWindow).frame(height: 50).padding(.vertical, 3)
+            CPUChart(points: model.history, window: model.chartWindow)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.cpu(model.history, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
             VStack(spacing: 5) {
                 breakdown(L("metrics.user"), color: .blue, value: r.cpuUser, ready: r.cpuReady)
                 breakdown(L("metrics.system"), color: .red, value: r.cpuSystem, ready: r.cpuReady)
@@ -509,7 +520,8 @@ struct MetricsOverviewView: View {
         VStack(spacing: 7) {
             heading(MenuBarMetric.gpu.symbol, "GPU", value: percent(r.gpu, ready: r.gpuReady))
             fact(L("metrics.cores"), value: r.gpuCores.map { L10n.cores($0) } ?? "—")
-            GPUChart(points: model.gpuHistory, window: model.chartWindow, language: settings.language).frame(height: 50).padding(.vertical, 3)
+            GPUChart(points: model.gpuHistory, window: model.chartWindow, language: settings.language)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.gpu(model.gpuHistory, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
                 .overlay { if !r.gpuReady { Text(L("metrics.gpu_unavailable")).font(.system(size: 10)).foregroundStyle(.secondary) } }
             VStack(spacing: 5) {
                 breakdown(L("metrics.gpu_utilization"), color: .blue, value: r.gpu, ready: r.gpuReady)
@@ -525,7 +537,8 @@ struct MetricsOverviewView: View {
                 fact(L("metrics.used"), value: r.memoryReady ? formattedMemory(r.usedMemory, basis: model.basis) : "—")
                 fact(L("metrics.total"), value: r.memoryReady ? formattedMemory(r.totalMemory, basis: model.basis) : "—")
             }.frame(height: 42)
-            MemoryChart(points: model.memoryHistory, window: model.chartWindow, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            MemoryChart(points: model.memoryHistory, window: model.chartWindow, language: settings.language)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.memory(model.memoryHistory, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact(L("metrics.available"), value: r.memoryReady ? formattedMemory(r.totalMemory - min(r.totalMemory, r.usedMemory), basis: model.basis) : "—")
         }
     }
@@ -536,7 +549,8 @@ struct MetricsOverviewView: View {
                 rateRow(L("metrics.download"), symbol: "arrow.down", bytes: r.download)
                 rateRow(L("metrics.upload"), symbol: "arrow.up", bytes: r.upload)
             }.frame(height: 42)
-            NetworkChart(points: model.networkHistory, window: model.chartWindow, language: settings.language).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            NetworkChart(points: model.networkHistory, window: model.chartWindow, language: settings.language)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.network(model.networkHistory, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact("IP", value: r.address, truncatesValue: true).textSelection(.enabled).help(r.address)
         }
     }
@@ -604,7 +618,7 @@ struct MetricsOverviewView: View {
             Spacer(minLength: 2)
             Text(value).monospacedDigit().lineLimit(1).truncationMode(.middle)
                 .fixedSize(horizontal: !truncatesValue, vertical: false)
-        }.font(.system(size: 10.5)).frame(height: 15)
+        }.font(.system(size: 10.5)).frame(height: 15).accessibilityElement(children: .combine)
     }
     private func breakdown(_ label: String, color: Color, value: Double, ready: Bool) -> some View {
         HStack(spacing: 5) {
@@ -612,7 +626,7 @@ struct MetricsOverviewView: View {
             Text(label).foregroundStyle(.secondary)
             Spacer(minLength: 2)
             Text(percent(value, ready: ready)).monospacedDigit()
-        }.font(.system(size: 11)).frame(height: 15)
+        }.font(.system(size: 11)).frame(height: 15).accessibilityElement(children: .combine)
     }
     private func rateRow(_ title: String, symbol: String, bytes: Double) -> some View {
         let parts = formattedRate(bytes, basis: model.basis, ready: r.networkReady).split(separator: " ", maxSplits: 1)
@@ -623,6 +637,6 @@ struct MetricsOverviewView: View {
             Text(parts.first.map(String.init) ?? "—").font(.system(size: 13)).monospacedDigit().fixedSize()
             Text(parts.count > 1 ? String(parts[1]) : "").font(.system(size: 10)).foregroundStyle(.secondary)
                 .frame(width: model.basis == .binary ? 30 : 26, alignment: .leading)
-        }.frame(height: 18)
+        }.frame(height: 18).accessibilityElement(children: .combine)
     }
 }

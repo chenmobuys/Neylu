@@ -19,7 +19,8 @@ The preview uses demonstration readings and a documentation-only IP address. In 
 - External disk monitoring with native eject controls.
 - Automatic, light, and dark appearance; English and Simplified Chinese.
 - Local history retained for 24 hours, with a two-minute chart view. No telemetry or monitoring-data uploads.
-- Manual update checks against GitHub Releases, verified downloads, and installation with rollback.
+- Optional daily background update checks with a quiet settings indicator; verified downloads and installation with rollback.
+- Inspect recorded chart samples by hovering or using Left/Right Arrow keys when focused; Escape dismisses detail and utility windows.
 
 ## Install
 
@@ -53,7 +54,7 @@ Click the menu bar readings to open the overview. Right-click them, or use the o
 
 Choose **Check for Updates…** to check GitHub. **Update Now** downloads and verifies the installer, quits Neylu normally, replaces the app, and relaunches it. If replacement fails or the new app quits during the startup observation period, the previous installation is restored. History and preferences are kept outside the app bundle and remain intact.
 
-If the current location cannot be safely replaced, Neylu opens the verified DMG for manual installation. It does not request administrator privileges or remove quarantine attributes automatically. Update checks are user-initiated and do not require a GitHub account.
+If the current location cannot be safely replaced, Neylu opens the verified DMG for manual installation. It does not request administrator privileges or remove quarantine attributes automatically. By default, Neylu checks GitHub once a day in the background without opening a window or downloading an installer. A dot on the settings button and a version label in the menu indicate an available update. Disable **Automatically Check for Updates** to opt out. No GitHub account is required.
 
 The application identifier is `io.github.chenmobuys.Neylu`. Preview builds check for newer previews and stable releases; stable builds check for stable releases only.
 
@@ -96,6 +97,7 @@ Building requires Xcode 26 or later, including the macOS 26 SDK. The deployment 
 ./test-history.sh
 ./test-runtime.sh
 ./test-updates.sh
+./test-performance.sh # Optional live-sampling and offscreen UI benchmark; not whole-app energy use
 python3 -m unittest discover -s Tests -p 'test_*.py' -v
 ```
 

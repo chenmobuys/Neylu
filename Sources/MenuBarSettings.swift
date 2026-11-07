@@ -30,7 +30,7 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
 
     init(model: MonitorModel) {
         self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 400),
+        let window = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 400),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         preview.setAccessibilityElement(true)
@@ -112,7 +112,7 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         window.setContentSize(NSSize(width: 380, height: surface.fittingSize.height))
         window.center()
         model.$reading.sink { [weak self] reading in
-            guard let self else { return }
+            guard let self, self.window?.isVisible == true else { return }
             self.preview.reading = reading
             self.preview.setAccessibilityLabel(self.preview.accessibilitySummary)
         }.store(in: &subscriptions)
@@ -135,6 +135,7 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         NSApp.activate(ignoringOtherApps: true)
     }
     private func refreshPreview() {
+        preview.reading = model.reading
         window?.contentView?.layoutSubtreeIfNeeded()
         preview.basis = model.basis
         preview.configuration = model.settings.menuBarConfiguration

@@ -210,3 +210,20 @@ if CommandLine.arguments.contains("--live-github") {
     done.wait()
     if let failure { throw failure }
 }
+
+if CommandLine.arguments.contains("--live-check") {
+    MainActor.assumeIsolated {
+        var response: Result<AvailableUpdate?, Error>?
+        Task { @MainActor in
+            do { response = .success(try await UpdateDiscovery.find(current: ReleaseVersion("0.1.0-alpha.3")!, architecture: UpdateController.architecture)) }
+            catch { response = .failure(error) }
+        }
+        let deadline = Date().addingTimeInterval(45)
+        while response == nil && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        guard let response else { fatalError("Live GitHub discovery timed out") }
+        switch response {
+        case .success(let update): print("PASS live bounded GitHub release discovery: " + (update?.version.text ?? "no newer compatible release"))
+        case .failure(let error): fatalError("Live GitHub discovery failed: \(error)")
+        }
+    }
+}

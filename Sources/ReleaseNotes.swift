@@ -92,3 +92,7 @@ enum ReleaseNotesHistory {
         return true
     }
 }
+
+final class UtilityWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) { close() }
+}

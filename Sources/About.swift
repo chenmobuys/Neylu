@@ -12,7 +12,7 @@ final class AboutController: NSWindowController {
 
     init(settings: MonitorSettings, bundle: Bundle = .main) {
         appBundle = bundle
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 250),
+        let window = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 250),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.isReleasedWhenClosed = false
