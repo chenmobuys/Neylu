@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:neylu="https://github.com/chenmobuys/Neylu/appcast" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Neylu Updates (arm64)</title>
+    <link>https://github.com/chenmobuys/Neylu</link>
+    <description>Neylu stable and preview releases</description>
+    <item>
+      <title>Neylu 0.1.0-alpha.4</title>
+      <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.4</link>
+      <sparkle:version>4</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-alpha.4</sparkle:shortVersionString>
+      <sparkle:channel>alpha</sparkle:channel>
+      <sparkle:minimumSystemVersion>13.0.0</sparkle:minimumSystemVersion>
+      <pubDate>Sat, 07 Nov 2026 14:19:53 GMT</pubDate>
+      <description>&gt; 早期测试版：仅 ad-hoc 签名，未经 Apple 公证；首次打开请参阅 README。
+
+&lt;!-- neylu:en --&gt;
+### English
+
+- **Chart inspection:** Hover over CPU, GPU, memory, or network charts to inspect recorded samples with synchronized time markers. Use the Left and Right Arrow keys when a chart is focused. Timestamps include seconds; unavailable GPU counters remain unavailable.
+- **Quiet update checks:** Check GitHub once a day in the background, with an update indicator on the settings button and the available version in its menu. Automatic checks can be disabled. No installer is downloaded or installed automatically.
+- **Release notes after updates:** Bundle the current release notes for offline viewing and show them once after subsequent upgrades. The Release Notes menu item lets you reopen them at any time. First launches establish a version baseline silently; restarts, reinstalls of an already-seen version, and downgrades do not prompt.
+- **Lower hidden-view overhead:** Unmount detail charts and their uptime timeline when the overview is closed; pause the menu bar settings preview while its window is hidden. Monitoring and batched history writes continue.
+- **Native keyboard and accessibility support:** Add Escape dismissal to utility windows, keyboard chart inspection, and more descriptive accessibility text. Respect Reduce Transparency, Increase Contrast, and Reduce Motion where applicable.
+
+This is the first version to track the last launched release. When upgrading from an earlier Alpha, open Release Notes from settings to view this release; automatic post-update notes begin with the next upgrade.
+
+This preview is ad hoc signed and is not notarized by Apple. See the README for first-launch instructions.
+
+&lt;!-- neylu:zh-Hans --&gt;
+### 中文
+
+- **图表读数：** 悬浮查看 CPU、GPU、内存、网络的实际采样，四项图表共用时间指示线；聚焦后可用左右方向键查看。时间精确到秒，GPU 缺失指标仍显示不可用。
+- **安静检查更新：** 后台每天检查一次 GitHub，发现新版后在设置按钮显示提示点，菜单显示版本号；可关闭自动检查，不会自动下载安装包或安装更新。
+- **升级后的更新说明：** 当前版本说明随 App 打包，支持离线查看；后续升级时只展示一次，设置中的「更新日志」可随时重新打开。首次运行只记录版本，重启、重装已展示版本及降级不重复弹窗。
+- **降低隐藏界面开销：** 详情关闭时卸载图表及开机时间视图，菜单栏设置窗口隐藏后暂停预览更新；保持监控采样和批量历史写入。
+- **原生键盘与辅助功能：** 工具窗口支持 Escape 关闭，图表支持键盘查看，补充辅助朗读信息，并适配减少透明度、提高对比度和减少动态效果设置。
+
+本版首次开始记录已运行版本。从更早的 Alpha 升级后，可在设置的「更新日志」查看本次说明；下一次升级起会自动展示一次。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。
+</description>
+      <neylu:sha256>1b5a638e2c6ffc4fb9f2868edacc06985e10f15516a0daef40dca70b1af56e64</neylu:sha256>
+      <enclosure url="https://github.com/chenmobuys/Neylu/releases/download/v0.1.0-alpha.4/Neylu-0.1.0-alpha.4-arm64.dmg" length="341152" type="application/x-apple-diskimage" />
+    </item>
+  </channel>
+</rss>
