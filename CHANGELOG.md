@@ -2,8 +2,27 @@
 
 ## [Unreleased]
 
-- Fix the relocated update helper retaining download quarantine. Verify the running app and copied helper before removing quarantine from that private copy only; leave the installed app, downloaded candidate, and unrelated metadata untouched.
-- 修复更新辅助程序复制到暂存目录时保留下载隔离标记、再次被系统拦截的问题。先验证当前 App 与辅助程序签名，仅处理私有暂存副本，不修改已安装 App、下载的候选应用或其他元数据。
+## [0.1.0-alpha.6] - 2026-11-08
+
+<!-- neylu:en -->
+### English
+
+- **Update helper launch fix:** Fix Gatekeeper blocking `NeyluUpdater` after it is copied from a previously approved installation to the private staging directory. Verify the installed app’s signature and nested code, confirm the copied helper’s contents and signature, then remove quarantine only from that helper copy. Leave the installed app, downloaded candidate, and unrelated metadata unchanged.
+- **Update safety checks:** Preserve installer checksums, version and architecture checks, signing identity checks, and replacement rollback. Add regression coverage for inherited quarantine, helper execution, tampered source apps, symbolic links, and existing staging files; make the shared-request cancellation test independent of response timing.
+
+When upgrading from alpha.5 or earlier, the old updater still runs until this version is installed. If macOS blocks `NeyluUpdater`, cancel the update and follow the README’s quarantine instructions before retrying, or install this release using the DMG or Homebrew.
+
+This preview is ad hoc signed and is not notarized by Apple. First-launch approval may still be required. Requires macOS 12 or later; macOS 12 has not yet been tested on a physical device.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **修复更新器启动被拦截：** 修复从已允许运行的安装中，将 `NeyluUpdater` 复制到私有暂存目录后再次被 Gatekeeper 拦截的问题。先验证已安装 App 的签名与内嵌代码，再核对复制后辅助程序的内容与签名，仅处理该辅助程序副本的隔离标记；不修改已安装 App、下载的候选应用或其他元数据。
+- **保留更新安全校验：** 继续验证安装包校验值、版本、架构与签名身份，并保留替换失败回滚。补充隔离标记继承、辅助程序执行、来源篡改、符号链接及暂存文件防覆盖测试；共享请求的取消测试不再依赖响应延时。
+
+从 alpha.5 或更早版本升级时，安装本版前仍由旧更新器执行。若系统拦截 `NeyluUpdater`，请取消更新，按 README 的隔离标记处理说明操作后重试；也可通过 DMG 或 Homebrew 安装本版。
+
+本预发布版仅 ad-hoc 签名，未经 Apple 公证，首次运行仍可能需要手动允许。要求 macOS 12 及以上；macOS 12 尚未完成实机验证。
 
 ## [0.1.0-alpha.5] - 2026-11-08
 
