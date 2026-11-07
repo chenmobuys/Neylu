@@ -121,9 +121,13 @@ class ReleaseTests(unittest.TestCase):
                 catalog.write_text('"fixture.key" = "Fixture";')
             for name in ['AppIcon.icns', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'ReleaseNotes.md']:
                 (resources / name).write_bytes(b'fixture')
+            login = app / 'Contents/Library/LoginItems/NeyluLoginHelper.app/Contents'
+            (login / 'MacOS').mkdir(parents=True)
+            (login / 'MacOS/NeyluLoginHelper').write_bytes(b'fixture')
+            (login / 'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='io.github.chenmobuys.Neylu.LoginHelper', LSMinimumSystemVersion='12.0')))
             (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(dict(
                 CFBundleShortVersionString='1.2.3', NeyluReleaseVersion='1.2.3',
-                CFBundleVersion=(ROOT / 'BUILD_NUMBER').read_text().strip(), CFBundleIdentifier='io.github.chenmobuys.Neylu')))
+                LSMinimumSystemVersion='12.0', CFBundleVersion=(ROOT / 'BUILD_NUMBER').read_text().strip(), CFBundleIdentifier='io.github.chenmobuys.Neylu')))
             with patch.object(release.subprocess, 'check_output', return_value='arm64'), patch.object(
                     release.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stderr='Signature=adhoc')) as run:
                 with self.assertRaisesRegex(ValueError, 'Stable releases require Developer ID'):
@@ -149,6 +153,16 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 release.detach_image(Path('/temporary/mounted'))
             self.assertEqual(run.call_count, 1)
+
+    def test_minimum_os_is_read_from_the_released_tag_build_script(self):
+        for raw, expected in [('12.0', '12.0.0'), ('13.0', '13.0.0')]:
+            script = f'<key>LSMinimumSystemVersion</key><string>{raw}</string>'
+            self.assertEqual(release.minimum_from_build_script(script), expected)
+        with self.assertRaises(ValueError):
+            release.minimum_from_build_script('<key>LSMinimumSystemVersion</key><string>12.0</string><key>LSMinimumSystemVersion</key><string>13.0</string>')
+        digests = dict(arm64='a'*64, x86_64='b'*64)
+        self.assertIn('depends_on macos: :monterey', release.cask_text('owner/Neylu','1.2.3',digests))
+        self.assertIn('depends_on macos: :ventura', release.cask_text('owner/Neylu','1.2.3',digests,minimum_system='13.0.0'))
 
     def test_project_metadata(self):
         version = (ROOT / 'VERSION').read_text().strip()

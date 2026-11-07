@@ -133,3 +133,6 @@
 "menu.automatic_updates" = "自动检查更新";
 "menu.update_available_format" = "发现新版本 %@…";
 "chart.inspect_hint" = "悬浮查看实际采样值，或聚焦后使用左右方向键。";
+"menu.preferences" = "偏好设置";
+"login.change_failed" = "无法修改开机启动设置，请将 Neylu 移入“应用程序”后重试。";
+"login.approval_hint" = "请在系统设置 → 通用 → 登录项中允许 Neylu。";

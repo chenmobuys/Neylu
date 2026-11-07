@@ -21,7 +21,7 @@ mkdir -p "$task_cache" "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 xcrun swift -module-cache-path "$task_cache" Assets/render-vector-icon.swift Assets/AppIcon-v5-vector.svg "$iconset_path"
 iconutil -c icns "$iconset_path" -o "$app_path/Contents/Resources/AppIcon.icns"
 python3 Assets/optimize-icon.py "$app_path/Contents/Resources/AppIcon.icns"
-xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx13.0" \
+xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx12.0" \
   "${neylu_sources[@]}" Sources/main.swift \
   -o "$app_path/Contents/MacOS/Neylu" -framework AppKit -framework SwiftUI \
   -framework SystemConfiguration -framework ServiceManagement -framework IOKit -framework DiskArbitration -lsqlite3
@@ -29,11 +29,30 @@ xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-mod
 # and Swift/Objective-C runtime metadata intact.
 xcrun strip -S -x "$app_path/Contents/MacOS/Neylu"
 mkdir -p "$app_path/Contents/Helpers"
-xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx13.0" \
+xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx12.0" \
   Sources/Localization.swift Sources/UpdateCore.swift Sources/UpdateMessages.swift Sources/Updater/main.swift -framework AppKit -framework Security \
   -o "$app_path/Contents/Helpers/NeyluUpdater"
 xcrun strip -S -x "$app_path/Contents/Helpers/NeyluUpdater"
 codesign --force --sign - "$app_path/Contents/Helpers/NeyluUpdater"
+login_helper="$app_path/Contents/Library/LoginItems/NeyluLoginHelper.app"
+mkdir -p "$login_helper/Contents/MacOS"
+xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx12.0" \
+  Sources/LoginHelper/main.swift -framework AppKit -o "$login_helper/Contents/MacOS/NeyluLoginHelper"
+xcrun strip -S -x "$login_helper/Contents/MacOS/NeyluLoginHelper"
+cat > "$login_helper/Contents/Info.plist" <<LOGINPLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>NeyluLoginHelper</string>
+<key>CFBundleIdentifier</key><string>io.github.chenmobuys.Neylu.LoginHelper</string>
+<key>CFBundleName</key><string>Neylu</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>$build_number</string>
+<key>CFBundleShortVersionString</key><string>$version</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>LSBackgroundOnly</key><true/>
+</dict></plist>
+LOGINPLIST
+codesign --force --sign - "$login_helper"
 cat > "$app_path/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -50,7 +69,7 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
 <key>NeyluReleaseVersion</key><string>$release_version</string>
 <key>CFBundleVersion</key><string>$build_number</string>
 <key>LSUIElement</key><true/>
-<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST

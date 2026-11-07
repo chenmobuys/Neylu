@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Support macOS 12 and later, with a bundled login helper on Monterey and AppKit chart hover tracking. Keep SMAppService on macOS 13+ and system glass on macOS 26+.
+- Group sampling, units, language, login, and automatic update options under Preferences; reuse native menu items and submenus while updating their titles and state. Preserve each published installer’s actual minimum macOS requirement in appcasts and Homebrew.
+- 支持 macOS 12 及以上：Monterey 使用内置登录辅助应用，图表悬浮统一使用 AppKit；13+ 保留 SMAppService，26+ 保留系统玻璃效果。
+- 将刷新、单位、语言、开机启动和自动更新选项归入「偏好设置」；原生菜单与子菜单持续复用，仅更新文案和状态。appcast 与 Homebrew 保留各历史安装包真实的最低系统要求。
+
 - Discover updates through architecture-specific static RSS appcasts instead of the unauthenticated GitHub REST API. Keep the native updater and existing installer verification without bundling Sparkle.
 - Generate and publish feeds automatically after verifying released installers; retain stable/preview history and continue independent Homebrew synchronization.
 - Share short-lived metadata caches and in-flight requests between manual/background checks, with cancellation when the final consumer leaves.

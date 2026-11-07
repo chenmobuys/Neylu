@@ -75,6 +75,7 @@ def main():
     parser.add_argument('--metadata', type=Path, required=True)
     parser.add_argument('--assets', type=Path)
     parser.add_argument('--build')
+    parser.add_argument('--build-script', type=Path)
     parser.add_argument('--fetch-tag')
     parser.add_argument('--allow-missing', action='store_true')
     args = parser.parse_args()
@@ -94,7 +95,8 @@ def main():
         return
     if args.assets is None or args.build is None:
         raise ValueError('--assets and --build are required for publication')
-    items = appcast.candidate(json.loads(args.metadata.read_text()), args.assets, args.build)
+    minimum = appcast.release.minimum_from_build_script(args.build_script.read_text()) if args.build_script else '12.0.0'
+    items = appcast.candidate(json.loads(args.metadata.read_text()), args.assets, args.build, minimum)
     publish(api, items)
 
 

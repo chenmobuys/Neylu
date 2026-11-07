@@ -181,6 +181,17 @@ class AppcastTests(unittest.TestCase):
             publisher.publish(conflict, changed)
         self.assertEqual(sum(method == 'PATCH' for method, _, _ in calls), 1)
 
+    def test_historical_os_requirement_is_preserved(self):
+        historical = appcast.candidate(self.meta, self.assets, '4', minimum_system='13.0.0')
+        old = appcast.merge(None, historical['arm64'], 'arm64')
+        self.assertEqual(appcast.field(appcast.read_items(old,'arm64')['0.1.0-alpha.4'],appcast.tag(appcast.SPARKLE,'minimumSystemVersion')),'13.0.0')
+        with self.assertRaisesRegex(ValueError,'same-version'):
+            appcast.merge(old, self.items['arm64'], 'arm64')
+        workflow = (ROOT/'.github/workflows/appcast.yml').read_text()
+        self.assertIn('--build-script .build/release-build.sh', workflow)
+        tap = (ROOT/'.github/workflows/homebrew.yml').read_text()
+        self.assertEqual(tap.count('--build-script .build/release-build.sh'), 2)
+
     def test_release_and_homebrew_jobs_remain_connected(self):
         workflow = (ROOT / '.github/workflows/release.yml').read_text()
         self.assertIn('uses: ./.github/workflows/homebrew.yml', workflow)

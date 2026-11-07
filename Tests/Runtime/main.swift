@@ -330,7 +330,52 @@ if CommandLine.arguments.contains("--self-test") {
     let badgeMenu = settingsCoordinator.makeMenu(pullsDown: false)
     settingsCoordinator.updateTitles(badgeMenu)
     precondition(badgeMenu.item(withTag: 13)!.title.contains("0.1.0-alpha.10"))
-    precondition(badgeMenu.item(withTag: 15)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
+    precondition(settingsCoordinator.item(15, in: badgeMenu)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
+    precondition(badgeMenu.items.filter { !$0.isSeparatorItem }.map(\.tag) == [6,3,16,10,13,14,11,12])
+    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,2,5,1,15])
+    let nestedPreferences = settingsCoordinator.item(16, in: badgeMenu)!.submenu!
+    let nestedRefresh = settingsCoordinator.item(4, in: badgeMenu)!
+    settingsCoordinator.menuNeedsUpdate(nestedPreferences)
+    precondition(settingsCoordinator.item(4, in: badgeMenu) === nestedRefresh)
+    final class FakeLoginService: LoginItemService {
+        var state: LoginItemState = .requiresApproval
+        var changes: [Bool] = []
+        var fail = false
+        func setEnabled(_ value: Bool) throws {
+            changes.append(value)
+            if fail { throw NSError(domain: "test", code: 1) }
+            state = value ? .enabled : .disabled
+        }
+    }
+    let fakeLogin = FakeLoginService()
+    let loginSettings = MonitorSettings(loginService: fakeLogin)
+    let loginCoordinator = SettingsMenuButton.Coordinator(settings: loginSettings)
+    let loginMenu = loginCoordinator.makeMenu(pullsDown: false)
+    precondition(loginCoordinator.item(1, in: loginMenu)!.state == .mixed)
+    loginSettings.setLogin(true)
+    loginCoordinator.menuNeedsUpdate(loginMenu)
+    precondition(loginCoordinator.item(1, in: loginMenu)!.state == .on && fakeLogin.changes == [true])
+    fakeLogin.fail = true
+    var loginFailed = false
+    loginSettings.onError = { _ in loginFailed = true }
+    loginSettings.setLogin(false)
+    precondition(loginFailed && loginSettings.loginEnabled)
+    let hover = ChartTrackingView(onMove: { _ in })
+    let hoverWindow = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 200,height: 100), styleMask: .borderless, backing: .buffered, defer: false)
+    hoverWindow.isReleasedWhenClosed = false
+    hoverWindow.contentView!.addSubview(hover)
+    hover.frame = NSRect(x: 20,y: 20,width: 100,height: 50)
+    var tracked: CGPoint?
+    hover.onMove = { tracked = $0 }
+    hover.updateTrackingAreas()
+    let move = NSEvent.mouseEvent(with: .mouseMoved, location: NSPoint(x: 70,y: 45), modifierFlags: [], timestamp: 0, windowNumber: hoverWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0)!
+    hover.mouseMoved(with: move)
+    precondition(tracked != nil && abs(tracked!.x - 50) < 0.01)
+    precondition(hover.hitTest(.zero) == nil && hover.trackingAreas.count == 1)
+    hover.mouseExited(with: move)
+    precondition(tracked == nil)
+    hoverWindow.close()
+    print("PASS: grouped native menus retain identity, pending login approval/failures reflect actual service state and macOS 12 AppKit chart tracking works")
     print("PASS: details unmount/reopen at fixed width, utility windows dismiss on Escape and native update menus expose badge/version and opt-out state")
     let aboutController = AboutController(settings: MonitorSettings(), bundle: appBundle)
     func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }

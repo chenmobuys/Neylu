@@ -25,6 +25,7 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain
 case "$app_path" in
   *.app)
     codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$APPLE_SIGNING_IDENTITY" "$app_path/Contents/Helpers/NeyluUpdater"
+    codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$APPLE_SIGNING_IDENTITY" "$app_path/Contents/Library/LoginItems/NeyluLoginHelper.app"
     codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$APPLE_SIGNING_IDENTITY" "$app_path"
     ditto -c -k --keepParent --norsrc "$app_path" "$private_dir/notarize.zip"
     submission="$private_dir/notarize.zip"

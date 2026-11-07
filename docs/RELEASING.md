@@ -26,7 +26,7 @@ CI 通过 `--ci-build` 生成仅用于开发验证的 ad-hoc 安装映像；公�
 图标保留 Apple 标准的 16、32、128、256、512 点及各自 2x 槽位（最高 1024 像素），从同一 SVG 生成一个 `AppIcon.icns`；渲染时将 RGB 按 8 级步长量化、保留完整 8 位透明度，再无损重编码 PNG，以减少细微渐变噪声；图案与轮廓不变，颜色精度略有降低。
 DMG 挂载卷通过硬链接将 App 图标作为 `.VolumeIcon.icns`，不复制第二份数据，再写入 Finder 自定图标标记并转换为只读压缩映像；打包检查会验证两者共享同一 inode。
 原生运行回归由独立 `./test-runtime.sh` 执行，不编入发布 App；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
-最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 13 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
+最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 12 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
 后续公开附件只有两份 DMG 安装映像；不上传独立 SHA-256 文件或 manifest。GitHub 自动生成附件摘要，发布后工作流将其与本地最终 DMG 的大小和 SHA-256 逐一核对。Release notes 来自 CHANGELOG 中与完整版本精确匹配的章节。
 Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；不提供绕过 Gatekeeper 的脚本。
 
@@ -44,7 +44,7 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 | APPLE_API_ISSUER_ID | API Issuer ID |
 
 私钥仅写入 runner 临时目录，权限 0700/0600；独立临时钥匙串在结束时删除，不修改默认钥匙串或输出密钥。
-先签名 `Contents/Helpers/NeyluUpdater`，再对 App 完成签名、公证、staple 和 Gatekeeper 检查，再制作 DMG；随后对 DMG 本身签名、公证和 staple，最后计算校验和。
+先签名 `Contents/Helpers/NeyluUpdater` 和 `Contents/Library/LoginItems/NeyluLoginHelper.app`，再对 App 完成签名、公证、staple 和 Gatekeeper 检查，再制作 DMG；随后对 DMG 本身签名、公证和 staple，最后计算校验和。
 任何一步失败都会停止正式发布，不会回退到未签名包。
 
 1. 修改 VERSION、递增 BUILD_NUMBER；更新 CHANGELOG 对应版本段落。
@@ -62,7 +62,7 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 发布成功后，Release 工作流自动调用 `.github/workflows/appcast.yml`，与 Homebrew 同步独立运行：
 
 1. 使用本仓库临时 `GITHUB_TOKEN` 读取已公开 Release，下载 ARM / Intel 两份最终 DMG，并复核 GitHub SHA-256、实际大小和仓库下载地址。
-2. 从对应 tag 的 `BUILD_NUMBER` 读取构建号，`scripts/appcast.py` 生成 RSS/Sparkle 命名空间的架构独立订阅，保留各最近十个正式版及测试版。
+2. 从对应 tag 的 `BUILD_NUMBER` 读取构建号、`build.sh` 读取最低系统要求，`scripts/appcast.py` 生成 RSS/Sparkle 命名空间的架构独立订阅，保留各最近十个正式版及测试版。
 3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml`，不修改源码分支或 Release 附件。同版本校验值、大小和构建号变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
 4. 客户端通过 GitHub 静态内容服务读取固定 HTTPS 地址，不访问 REST API：
    - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-arm64.xml
@@ -86,7 +86,7 @@ brew install --cask chenmobuys/tap/neylu
 
 1. 读取已公开 Release，下载 ARM / Intel 两份 DMG，验证完整版本、附件大小、实际 SHA-256 与 GitHub 摘要及下载地址归属。
 2. 用专用部署密钥检出独立 tap；密钥只对该仓库有效。
-3. `scripts/update-tap.py` 比较已有版本：拒绝降级，拒绝同版本校验和变化；重复同步不产生空提交。
+3. `scripts/update-tap.py` 比较已有版本：拒绝降级，拒绝同版本校验和变化；重复同步不产生空提交。最低系统要求从发布 tag 的 `build.sh` 读取，不能用当前源码的要求覆盖历史安装包。
 4. 仅提交 `Casks/neylu.rb` 并直接推送 main；tap 的 CI 自动检查 Ruby 与 Homebrew 风格。无需手动 PR。
 
 ### 一次性凭据配置

@@ -81,7 +81,26 @@ def verify_github_assets(output, version, architectures, metadata):
     print("Verified GitHub-generated SHA-256 against local installers")
 
 
-def cask_text(repository, version, digests, allow_prerelease=False):
+def normalize_minimum(value):
+    if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,2}', value):
+        raise ValueError('Invalid minimum macOS version')
+    parts = [int(part) for part in value.split('.')]
+    if parts[0] < 12:
+        raise ValueError('Neylu requires macOS 12 or later')
+    return '.'.join(str(part) for part in (parts + [0, 0])[:3])
+
+
+def minimum_from_build_script(text):
+    matches = re.findall(r'<key>LSMinimumSystemVersion</key>\s*<string>([0-9.]+)</string>', text)
+    if not matches:
+        raise ValueError('Cannot determine minimum macOS from release build script')
+    values = {normalize_minimum(value) for value in matches}
+    if len(values) != 1:
+        raise ValueError('App and helper minimum macOS versions differ')
+    return values.pop()
+
+
+def cask_text(repository, version, digests, allow_prerelease=False, minimum_system="12.0.0"):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise ValueError("Invalid GitHub repository")
     pattern = VERSION_PATTERN if allow_prerelease else BASE_VERSION
@@ -89,6 +108,12 @@ def cask_text(repository, version, digests, allow_prerelease=False):
         raise ValueError("Valid version and both architecture checksums required; previews need explicit opt-in")
     if not all(re.fullmatch(r"[a-f0-9]{64}", d) for d in digests.values()):
         raise ValueError("Invalid SHA-256")
+    minimum_system = normalize_minimum(minimum_system)
+    names = {12: 'monterey', 13: 'ventura', 14: 'sonoma', 15: 'sequoia', 26: 'tahoe'}
+    major, minor, patch = map(int, minimum_system.split('.'))
+    if major not in names or minor != 0 or patch != 0:
+        raise ValueError('Unsupported Homebrew minimum macOS requirement')
+    macos = names[major]
     caveats = f'''
 
   caveats <<~EOS
@@ -117,7 +142,7 @@ cask "neylu" do
   homepage "https://github.com/{repository}"
 
   auto_updates true
-  depends_on macos: :ventura
+  depends_on macos: :{macos}
 
   app "Neylu.app"
 
@@ -152,6 +177,14 @@ def check(app, version, arch, require_notarization=True):
     helper_arch = subprocess.check_output(["lipo", "-archs", str(helper)], text=True).strip()
     if helper_arch != arch:
         raise ValueError(f"Unexpected updater architecture: {helper_arch}; expected {arch}")
+    login = app / "Contents/Library/LoginItems/NeyluLoginHelper.app"
+    login_info = plistlib.loads((login / "Contents/Info.plist").read_bytes())
+    if (login_info.get("CFBundleIdentifier") != "io.github.chenmobuys.Neylu.LoginHelper"
+            or login_info.get("LSMinimumSystemVersion") != info.get("LSMinimumSystemVersion")):
+        raise ValueError("Invalid login helper identity or minimum macOS")
+    login_arch = subprocess.check_output(["lipo", "-archs", str(login / "Contents/MacOS/NeyluLoginHelper")], text=True).strip()
+    if login_arch != arch:
+        raise ValueError("Unexpected login helper architecture")
     for name in ["AppIcon.icns", "LICENSE", "THIRD_PARTY_NOTICES.md", "ReleaseNotes.md"]:
         if not (app / "Contents/Resources" / name).is_file():
             raise ValueError(f"Missing resource: {name}")
@@ -226,7 +259,7 @@ def package(app, output, version, arch, require_notarization=True):
             subprocess.run(["xcrun", "SetFile", "-a", "C", str(mount)], check=True)
         finally:
             detach_image(mount)
-        # Native LZMA DMGs work on macOS 10.15+, below our macOS 13 minimum.
+        # Native LZMA DMGs work on macOS 10.15+, below our macOS 12 minimum.
         subprocess.run(["hdiutil", "convert", str(writable), "-format", "ULMO",
                         "-o", str(image)], check=True)
     subprocess.run(["hdiutil", "verify", str(image)], check=True)

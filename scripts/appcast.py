@@ -48,8 +48,9 @@ def validate_item(item, architecture):
     expected_channel = ('alpha', 'beta', 'rc', '')[key[3]]
     if field(item, tag(SPARKLE, 'channel'), optional=True) != expected_channel:
         raise ValueError('Version/channel mismatch')
-    if field(item, tag(SPARKLE, 'minimumSystemVersion')) != '13.0.0':
-        raise ValueError('Unexpected minimum macOS version')
+    minimum = field(item, tag(SPARKLE, 'minimumSystemVersion'))
+    if release.normalize_minimum(minimum) != minimum:
+        raise ValueError('Invalid minimum macOS version')
     digest = field(item, tag(NEYLU, 'sha256'))
     if not re.fullmatch(r'[a-f0-9]{64}', digest):
         raise ValueError('Invalid SHA-256')
@@ -91,7 +92,8 @@ def read_items(data, architecture):
     return result
 
 
-def candidate(metadata, assets, build):
+def candidate(metadata, assets, build, minimum_system="12.0.0"):
+    minimum_system = release.normalize_minimum(minimum_system)
     version = metadata.get('tag_name', '')[1:]
     version_key(version)
     if metadata.get('tag_name') != 'v' + version or metadata.get('html_url') != f'{REPOSITORY}/releases/tag/v{version}':
@@ -115,7 +117,7 @@ def candidate(metadata, assets, build):
         ET.SubElement(item, tag(SPARKLE, 'shortVersionString')).text = version
         if '-' in version:
             ET.SubElement(item, tag(SPARKLE, 'channel')).text = version.split('-')[1].split('.')[0]
-        ET.SubElement(item, tag(SPARKLE, 'minimumSystemVersion')).text = '13.0.0'
+        ET.SubElement(item, tag(SPARKLE, 'minimumSystemVersion')).text = minimum_system
         published = datetime.datetime.fromisoformat(metadata['published_at'].replace('Z', '+00:00'))
         ET.SubElement(item, 'pubDate').text = email.utils.format_datetime(published.astimezone(datetime.timezone.utc), usegmt=True)
         ET.SubElement(item, 'description').text = (metadata.get('body') or '')[:12000]
@@ -131,7 +133,8 @@ def merge(existing, item, architecture):
     version, build, digest, size = validate_item(item, architecture)
     if version in entries:
         _, old_build, old_digest, old_size = validate_item(entries[version], architecture)
-        if (build, digest, size) != (old_build, old_digest, old_size):
+        if ((build, digest, size) != (old_build, old_digest, old_size)
+                or field(item, tag(SPARKLE, 'minimumSystemVersion')) != field(entries[version], tag(SPARKLE, 'minimumSystemVersion'))):
             raise ValueError('Refusing same-version installer replacement')
     entries[version] = item
     ordered = sorted(entries, key=version_key, reverse=True)
@@ -156,9 +159,10 @@ def main():
     parser.add_argument('--metadata', type=Path, required=True)
     parser.add_argument('--assets', type=Path, required=True)
     parser.add_argument('--build', required=True)
+    parser.add_argument('--minimum-system', default='12.0.0')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    items = candidate(json.loads(args.metadata.read_text()), args.assets, args.build)
+    items = candidate(json.loads(args.metadata.read_text()), args.assets, args.build, args.minimum_system)
     args.output.mkdir(parents=True, exist_ok=True)
     for arch, item in items.items():
         path = args.output / f'appcast-{arch}.xml'

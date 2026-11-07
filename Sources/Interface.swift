@@ -15,10 +15,6 @@ final class MonitorModel: ObservableObject {
     let diskActions = DiskActions()
     let alerts = MonitorAlerts()
     var basis: UnitBasis { settings.basis }
-    var loginEnabled: Bool {
-        get { settings.loginEnabled }
-        set { settings.loginEnabled = newValue }
-    }
     var error: String? {
         get { alerts.message }
         set { alerts.message = newValue }

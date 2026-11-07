@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Download published installers
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,11 +39,12 @@ jobs:
               raise SystemExit('Invalid release tag')
           PY
           mkdir -p .build/published
+          git show "$RELEASE_TAG:build.sh" > .build/release-build.sh
           gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > .build/published-release.json
           gh release download "$RELEASE_TAG" --dir .build/published --pattern 'Neylu-*.dmg'
           # Validate the public release before making the deployment key available.
           python3 scripts/update-tap.py --tag "$RELEASE_TAG" --assets .build/published \
-            --metadata .build/published-release.json --tap .build/verified-tap
+            --metadata .build/published-release.json --tap .build/verified-tap --build-script .build/release-build.sh
       - name: Check deployment credential
         env:
           TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
@@ -64,7 +66,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           python3 scripts/update-tap.py --tag "$RELEASE_TAG" --assets .build/published \
-            --metadata .build/published-release.json --tap homebrew-tap
+            --metadata .build/published-release.json --tap homebrew-tap --build-script .build/release-build.sh
           cd homebrew-tap
           if git diff --quiet -- Casks/neylu.rb && [ -z "$(git ls-files --others --exclude-standard Casks/neylu.rb)" ]; then
             echo 'No tap update needed.'

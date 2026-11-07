@@ -64,17 +64,13 @@ private struct ChartInspectionModifier: ViewModifier {
                     }
                 }
                 .contentShape(Rectangle())
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let point):
-                        guard geometry.size.width > 0 else { return }
-                        let fraction = min(1, max(0, point.x / geometry.size.width))
-                        let target = window.start.addingTimeInterval(fraction * window.end.timeIntervalSince(window.start))
-                        let selected = ChartReadout.nearest(visible, at: target, timestamp: \.self)
-                        if date != selected { date = selected }
-                    case .ended: date = nil
-                    }
-                }
+                .background(ChartHoverArea { point in
+                    guard let point, geometry.size.width > 0 else { date = nil; return }
+                    let fraction = min(1, max(0, point.x / geometry.size.width))
+                    let target = window.start.addingTimeInterval(fraction * window.end.timeIntervalSince(window.start))
+                    let selected = ChartReadout.nearest(visible, at: target, timestamp: \.self)
+                    if date != selected { date = selected }
+                })
         }
         .focusable()
         .onMoveCommand { direction in

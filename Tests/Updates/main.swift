@@ -86,7 +86,7 @@ print("PASS release notes first-launch baseline, persistent once-per-upgrade pro
 let fixtureRoot = URL(fileURLWithPath: ProcessInfo.processInfo.environment["NEYLU_APPCAST_FIXTURES"]!)
 let armFeed = try Data(contentsOf: fixtureRoot.appendingPathComponent("appcast-arm64.xml"))
 let intelFeed = try Data(contentsOf: fixtureRoot.appendingPathComponent("appcast-x86_64.xml"))
-let testSystem = OperatingSystemVersion(majorVersion: 13, minorVersion: 0, patchVersion: 0)
+let testSystem = OperatingSystemVersion(majorVersion: 12, minorVersion: 0, patchVersion: 0)
 let parsedFeed = try Appcast.releases(from: armFeed, architecture: "arm64", system: testSystem)
 expect(parsedFeed.count == 3, "Publisher/client appcast contract lost versions")
 expect(parsedFeed.first!.body!.contains("**Fix** & <data>") && parsedFeed.first!.body!.contains("中文"), "XML escaping or Unicode release notes changed")
@@ -101,14 +101,14 @@ for bad in ["", xml.replacingOccurrences(of: "<rss ", with: "<!DOCTYPE rss [<!EN
             xml.replacingOccurrences(of: "<sparkle:channel>alpha", with: "<sparkle:channel>stable"),
             xml.replacingOccurrences(of: "length=\"5\"", with: "length=\"0\""),
             xml.replacingOccurrences(of: "https://github.com/chenmobuys/Neylu/releases/download/", with: "https://evil.example/"),
-            xml.replacingOccurrences(of: "13.0.0", with: "13.bad.0.0"),
+            xml.replacingOccurrences(of: "12.0.0", with: "13.bad.0.0"),
             xml.replacingOccurrences(of: "<sparkle:version>3", with: "<sparkle:version>0") ] {
     rejects("Unsafe or malformed appcast accepted") { _ = try Appcast.releases(from: Data(bad.utf8), architecture: "arm64", system: testSystem) }
 }
 rejects("Oversized XML accepted") { _ = try Appcast.releases(from: Data(repeating: 65, count: Appcast.limit + 1), architecture: "arm64") }
 let alias = xml.replacingOccurrences(of: "xmlns:neylu=", with: "xmlns:n=").replacingOccurrences(of: "neylu:", with: "n:")
 expect(try Appcast.releases(from: Data(alias.utf8), architecture: "arm64", system: testSystem).count == 3, "Namespace identity was confused with a hardcoded prefix")
-let futureOS = xml.replacingOccurrences(of: "13.0.0", with: "99.0.0")
+let futureOS = xml.replacingOccurrences(of: "12.0.0", with: "99.0.0")
 expect(try Appcast.releases(from: Data(futureOS.utf8), architecture: "arm64", system: testSystem).isEmpty, "Unsupported macOS requirement was ignored")
 for arch in ["arm64", "x86_64"] { expect(UpdateDownload.allowed(Appcast.url(for: arch)!), "Static feed URL rejected") }
 for bad in ["https://api.github.com/repos/chenmobuys/Neylu/releases", "https://raw.githubusercontent.com/other/repo/updates/appcast-arm64.xml", "https://raw.githubusercontent.com/chenmobuys/Neylu/main/appcast-arm64.xml", Appcast.url(for: "arm64")!.absoluteString + "?other=1"] {

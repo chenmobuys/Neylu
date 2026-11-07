@@ -1,9 +1,18 @@
 import AppKit
 import SwiftUI
-import ServiceManagement
 
 final class MonitorSettings: ObservableObject {
-    @Published var loginEnabled = SMAppService.mainApp.status == .enabled
+    private let loginService: LoginItemService
+    @Published private(set) var loginState: LoginItemState = .disabled
+    var loginEnabled: Bool { loginState == .enabled }
+    init(loginService: LoginItemService = SystemLoginItems()) {
+        self.loginService = loginService
+        refreshLoginStatus()
+    }
+    func refreshLoginStatus() {
+        let value = loginService.state
+        if value != loginState { loginState = value }
+    }
     @Published var basis = UnitBasis(rawValue: UserDefaults.standard.string(forKey: "unitBasis") ?? "") ?? .decimal {
         didSet {
             guard basis != oldValue else { return }
@@ -55,12 +64,9 @@ final class MonitorSettings: ObservableObject {
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
     func setLogin(_ enabled: Bool) {
-        do {
-            if enabled { try SMAppService.mainApp.register() }
-            else { try SMAppService.mainApp.unregister() }
-        } catch { onError?(error.localizedDescription) }
-        loginEnabled = SMAppService.mainApp.status == .enabled
-        if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+        do { try loginService.setEnabled(enabled) }
+        catch { onError?(error.localizedDescription) }
+        refreshLoginStatus()
     }
 }
 
@@ -104,6 +110,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             let menu = NSMenu(title: L("menu.more"))
             menu.autoenablesItems = false
             menu.delegate = self
+            let preferences = NSMenu(title: L("menu.preferences"))
             // Pull-down buttons display and hide this first item automatically.
             if pullsDown { menu.addItem(NSMenuItem(title: "", action: nil, keyEquivalent: "")) }
             let menuBar = NSMenuItem(title: L("menu.menu_bar_items"), action: #selector(showMenuBarSettings), keyEquivalent: "")
@@ -123,6 +130,10 @@ struct SettingsMenuButton: NSViewRepresentable {
             appearanceItem.tag = 3
             appearanceItem.submenu = appearance
             menu.addItem(appearanceItem)
+            let preferencesItem = NSMenuItem(title: L("menu.preferences"), action: nil, keyEquivalent: "")
+            preferencesItem.tag = 16
+            preferencesItem.submenu = preferences
+            menu.addItem(preferencesItem)
             let refresh = NSMenu(title: L("menu.refresh_interval"))
             refresh.autoenablesItems = false
             for interval in RefreshInterval.allCases {
@@ -135,7 +146,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             let refreshItem = NSMenuItem(title: L("menu.refresh_interval"), action: nil, keyEquivalent: "")
             refreshItem.tag = 4
             refreshItem.submenu = refresh
-            menu.addItem(refreshItem)
+            preferences.addItem(refreshItem)
             let units = NSMenu(title: L("menu.units"))
             units.autoenablesItems = false
             for basis in UnitBasis.allCases {
@@ -150,7 +161,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             let unitItem = NSMenuItem(title: L("menu.units"), action: nil, keyEquivalent: "")
             unitItem.tag = 2
             unitItem.submenu = units
-            menu.addItem(unitItem)
+            preferences.addItem(unitItem)
             let language = NSMenu(title: L("menu.language"))
             language.autoenablesItems = false
             for choice in AppLanguage.allCases {
@@ -163,17 +174,19 @@ struct SettingsMenuButton: NSViewRepresentable {
             let languageItem = NSMenuItem(title: L("menu.language"), action: nil, keyEquivalent: "")
             languageItem.tag = 5
             languageItem.submenu = language
-            menu.addItem(languageItem)
+            preferences.addItem(languageItem)
+            preferences.addItem(.separator())
             let login = NSMenuItem(title: L("menu.open_at_login"), action: #selector(toggleLogin), keyEquivalent: "")
             login.tag = 1
             login.target = self
-            login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-            menu.addItem(login)
+            login.state = settings.loginEnabled ? .on : .off
+            preferences.addItem(login)
             menu.addItem(.separator())
             let activity = NSMenuItem(title: L("menu.activity_monitor"), action: #selector(openActivity), keyEquivalent: "")
             activity.tag = 10
             activity.target = self
             menu.addItem(activity)
+            menu.addItem(.separator())
             let update = NSMenuItem(title: L("menu.check_for_updates"), action: #selector(checkForUpdates), keyEquivalent: "")
             update.tag = 13
             update.target = self
@@ -181,7 +194,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             let automatic = NSMenuItem(title: L("menu.automatic_updates"), action: #selector(toggleAutomaticUpdates), keyEquivalent: "")
             automatic.tag = 15
             automatic.target = self
-            menu.addItem(automatic)
+            preferences.addItem(automatic)
             let notes = NSMenuItem(title: L("menu.release_notes"), action: #selector(showReleaseNotes), keyEquivalent: "")
             notes.tag = 14
             notes.target = self
@@ -195,52 +208,70 @@ struct SettingsMenuButton: NSViewRepresentable {
             quit.tag = 12
             quit.target = self
             menu.addItem(quit)
+            configureDelegates(menu)
+            menuNeedsUpdate(menu)
             return menu
+        }
+        func item(_ tag: Int, in menu: NSMenu?) -> NSMenuItem? {
+            for candidate in menu?.items ?? [] {
+                if candidate.tag == tag { return candidate }
+                if let found = item(tag, in: candidate.submenu) { return found }
+            }
+            return nil
+        }
+        private func configureDelegates(_ menu: NSMenu) {
+            menu.delegate = self
+            menu.autoenablesItems = false
+            for item in menu.items { if let child = item.submenu { configureDelegates(child) } }
         }
         // Mutate existing items on language changes; never replace a tracking menu.
         func updateTitles(_ menu: NSMenu?) {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (2, "menu.units"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates")] {
-                menu.item(withTag: tag)?.title = L(key)
-                menu.item(withTag: tag)?.submenu?.title = L(key)
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences")] {
+                item(tag, in: menu)?.title = L(key)
+                item(tag, in: menu)?.submenu?.title = L(key)
             }
             if let version = settings.availableUpdateVersion {
-                menu.item(withTag: 13)?.title = String(format: L("menu.update_available_format"), version)
+                item(13, in: menu)?.title = String(format: L("menu.update_available_format"), version)
             }
-            menu.item(withTag: 15)?.state = settings.automaticUpdateChecks ? .on : .off
-            for item in menu.item(withTag: 3)?.submenu?.items ?? [] {
+            item(15, in: menu)?.state = settings.automaticUpdateChecks ? .on : .off
+            for item in item(3, in: menu)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? String, let choice = AppearanceMode(rawValue: raw) { item.title = choice.title }
             }
-            for item in menu.item(withTag: 4)?.submenu?.items ?? [] {
+            for item in item(4, in: menu)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? Int, let choice = RefreshInterval(rawValue: raw) { item.title = choice.title }
             }
-            for item in menu.item(withTag: 2)?.submenu?.items ?? [] {
+            for item in item(2, in: menu)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? String, let choice = UnitBasis(rawValue: raw) {
                     item.title = choice == .decimal ? L("units.decimal") : L("units.binary")
                     item.toolTip = choice == .decimal ? L("units.decimal_hint") : L("units.binary_hint")
                 }
             }
-            for item in menu.item(withTag: 5)?.submenu?.items ?? [] {
+            for item in item(5, in: menu)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? String, let choice = AppLanguage(rawValue: raw) { item.title = choice.title }
             }
         }
-        func menuNeedsUpdate(_ menu: NSMenu) {
+        func menuNeedsUpdate(_ trackingMenu: NSMenu) {
+            var menu = trackingMenu
+            while let parent = menu.supermenu { menu = parent }
+            settings.refreshLoginStatus()
             updateTitles(menu)
-            for item in menu.item(withTag: 5)?.submenu?.items ?? [] {
+            for item in item(5, in: menu)?.submenu?.items ?? [] {
                 item.state = (item.representedObject as? String) == settings.language.rawValue ? .on : .off
             }
-            for item in menu.item(withTag: 3)?.submenu?.items ?? [] {
+            for item in item(3, in: menu)?.submenu?.items ?? [] {
                 item.state = (item.representedObject as? String) == settings.appearanceMode.rawValue ? .on : .off
             }
-            for item in menu.item(withTag: 2)?.submenu?.items ?? [] {
+            for item in item(2, in: menu)?.submenu?.items ?? [] {
                 item.state = (item.representedObject as? String) == settings.basis.rawValue ? .on : .off
             }
-            for item in menu.item(withTag: 4)?.submenu?.items ?? [] {
+            for item in item(4, in: menu)?.submenu?.items ?? [] {
                 item.state = (item.representedObject as? Int) == settings.refreshInterval.rawValue ? .on : .off
             }
-            menu.item(withTag: 1)?.state = SMAppService.mainApp.status == .enabled ? .on : .off
+            item(1, in: menu)?.state = settings.loginState == .requiresApproval ? .mixed : (settings.loginEnabled ? .on : .off)
+            item(1, in: menu)?.toolTip = settings.loginState == .requiresApproval ? L("login.approval_hint") : nil
         }
         @objc private func selectLanguage(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? String, let choice = AppLanguage(rawValue: raw) else { return }
@@ -258,7 +289,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let raw = sender.representedObject as? String, let basis = UnitBasis(rawValue: raw) else { return }
             settings.basis = basis
         }
-        @objc private func toggleLogin() { settings.setLogin(SMAppService.mainApp.status != .enabled) }
+        @objc private func toggleLogin() { settings.setLogin(!settings.loginEnabled) }
         @objc private func openActivity() {
             NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
         }

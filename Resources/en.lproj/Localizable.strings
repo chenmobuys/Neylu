@@ -133,3 +133,6 @@
 "menu.automatic_updates" = "Automatically Check for Updates";
 "menu.update_available_format" = "Update Available: %@…";
 "chart.inspect_hint" = "Hover to inspect a recorded sample, or use the Left and Right Arrow keys when focused.";
+"menu.preferences" = "Preferences";
+"login.change_failed" = "Could not change the login item. Move Neylu to Applications and try again.";
+"login.approval_hint" = "Allow Neylu in System Settings → General → Login Items.";

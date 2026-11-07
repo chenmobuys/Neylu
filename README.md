@@ -6,7 +6,7 @@
   <a href="https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/chenmobuys/Neylu/releases"><img alt="Latest prerelease" src="https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases&amp;label=release&amp;color=orange"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/chenmobuys/Neylu"></a>
-  <img alt="macOS 13+" src="https://img.shields.io/badge/macOS-13%2B-111827?logo=apple&amp;logoColor=white">
+  <img alt="macOS 12+" src="https://img.shields.io/badge/macOS-12%2B-111827?logo=apple&amp;logoColor=white">
   <img alt="Apple Silicon and Intel" src="https://img.shields.io/badge/arch-arm64%20%7C%20x86__64-007AFF">
   <img alt="Swift" src="https://img.shields.io/badge/Swift-5-F05138?logo=swift&amp;logoColor=white">
   <a href="https://github.com/chenmobuys/Neylu/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/chenmobuys/Neylu?style=flat"></a>
@@ -37,7 +37,7 @@
 
 - **一个菜单栏项目**：所有读数作为一个整体，数字等宽，上传下载分别显示完整单位。
 - **自定菜单栏**：在「菜单栏显示…」中勾选网速、内存、CPU、GPU 或系统盘占用，并拖动排序；实时预览、自动保存。默认网速 / MEM / GPU / CPU；全部隐藏时保留 Neylu 图标。
-- **原生外观**：macOS 26+ 系统玻璃；macOS 13–25 原生材质回退，跟随系统外观。
+- **原生外观**：macOS 26+ 系统玻璃；macOS 12–25 原生材质回退，跟随系统外观。
 - **实时图表**：CPU/GPU 并排、内存/网络并排，磁盘显示占用和读写速度。
 - **外接磁盘**：自动显示已挂载的 U 盘、移动硬盘和外接 SSD，拔出后移除；名称旁提供系统原生弹出按钮，多磁盘时可滚动查看。
 - **本机历史**：SQLite 增量存储 24 小时，打开时恢复最近两分钟；没有遥测，不上传监控数据。
@@ -150,7 +150,7 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 
 | 项目 | 支持情况 |
 | --- | --- |
-| 运行 | Apple Silicon 或 Intel、macOS 13+ |
+| 运行 | Apple Silicon 或 Intel、macOS 12+（开发分支；已发布至 alpha.4 的安装包仍要求 13+） |
 | 源码构建 | Xcode 26+，需要 macOS 26+ SDK |
 | CPU / 内存 / 网络 | 按所选刷新间隔采样，默认 2 秒；网络自动使用主接口 |
 | CPU 温度 | 按 Intel、Apple M1–M5 区分已知传感器；未知型号显示不支持，读取失败显示不可用。当前实际验证设备为 M3 Max，其他型号仍需硬件回归 |

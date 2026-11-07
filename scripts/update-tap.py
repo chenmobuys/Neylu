@@ -20,7 +20,7 @@ def version_key(version):
     return (int(major), int(minor), int(patch), {'alpha': 0, 'beta': 1, 'rc': 2, None: 3}[stage], int(number or 0))
 
 
-def candidate(tag, assets, metadata):
+def candidate(tag, assets, metadata, minimum_system="12.0.0"):
     version = tag.removeprefix('v')
     release.validate_tag(tag, version)
     version_key(version)
@@ -34,7 +34,7 @@ def candidate(tag, assets, metadata):
         if asset.get('browser_download_url') != expected:
             raise ValueError('Installer must belong to the expected repository and tag')
     digests = {arch: release.sha256_file(assets / release.asset_name(version, arch)) for arch in release.ARCHITECTURES}
-    return release.cask_text(REPOSITORY, version, digests, allow_prerelease=True)
+    return release.cask_text(REPOSITORY, version, digests, allow_prerelease=True, minimum_system=minimum_system)
 
 
 def apply(cask, content):
@@ -55,6 +55,10 @@ def apply(cask, content):
             new_sha = re.findall(r'"([a-f0-9]{64})"', content)
             if len(old_sha) != 2 or old_sha != new_sha:
                 raise ValueError('Published same-version checksums changed; refusing replacement')
+            old_min = re.findall(r'^  depends_on macos: (.+)$', previous, re.M)
+            new_min = re.findall(r'^  depends_on macos: (.+)$', content, re.M)
+            if old_min != new_min:
+                raise ValueError('Published same-version system requirement changed')
             if previous == content:
                 print('Cask is already up to date')
                 return False
@@ -69,8 +73,10 @@ def main():
     parser.add_argument('--assets', type=Path, required=True)
     parser.add_argument('--metadata', type=Path, required=True)
     parser.add_argument('--tap', type=Path, required=True)
+    parser.add_argument('--build-script', type=Path)
     args = parser.parse_args()
-    content = candidate(args.tag, args.assets, json.loads(args.metadata.read_text()))
+    minimum = release.minimum_from_build_script(args.build_script.read_text()) if args.build_script else '12.0.0'
+    content = candidate(args.tag, args.assets, json.loads(args.metadata.read_text()), minimum)
     if apply(args.tap / 'Casks/neylu.rb', content):
         print('Updated Casks/neylu.rb')
 

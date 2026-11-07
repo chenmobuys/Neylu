@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import ServiceManagement
 
 // NSVisualEffectView's backdrop is composited separately from its CALayer.
 // Mask the material itself as well as the SwiftUI content, including the window shadow.
@@ -495,8 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible { panel.orderOut(nil); return }
         model.layout.isVisible = true
         hosting.view.layoutSubtreeIfNeeded()
-        let loginEnabled = ServiceManagement.SMAppService.mainApp.status == .enabled
-        if model.loginEnabled != loginEnabled { model.loginEnabled = loginEnabled }
+        model.settings.refreshLoginStatus()
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? statusWindow.screen ?? NSScreen.main!
         let rawAnchor = statusWindow.convertToScreen(button.convert(button.bounds, to: nil))
