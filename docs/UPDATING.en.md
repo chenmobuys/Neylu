@@ -52,7 +52,7 @@ When reporting an issue, include the Neylu version, macOS version, chip, and err
 
 ## Energy saving and diagnostics
 
-**Preferences → Energy Saving** offers Off (the default), Follow System Low Power Mode, and On. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only disk I/O sampling pauses, and reopening establishes fresh baselines. Temperature is sampled when the overview is open or the menu bar temperature item is enabled, at most once every five seconds.
+**Preferences → Energy Saving** lists Follow System, On, and Off, in that order; Off remains the default. Follow System responds to macOS Low Power Mode. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only disk I/O sampling pauses, and reopening establishes fresh baselines. Temperature is sampled when the overview is open or the menu bar temperature item is enabled, at most once every five seconds.
 
 Choose **Copy Diagnostics** in the settings menu or About window to copy version, system, processor, refresh policy, and metric availability. IP addresses, interface/disk names, paths, logs, and actual monitoring values are excluded; nothing is sent automatically. Some fields normally show “Unavailable or not sampled” while details are closed; that does not establish that the hardware is unsupported.
 

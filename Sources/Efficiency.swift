@@ -1,7 +1,7 @@
 import Foundation
 
 enum EnergyMode: String, CaseIterable {
-    case off, automatic, on
+    case automatic, on, off
     var localizationKey: String {
         switch self { case .off: return "energy.off"; case .automatic: return "energy.automatic"; case .on: return "energy.on" }
     }

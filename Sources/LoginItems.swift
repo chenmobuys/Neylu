@@ -39,7 +39,10 @@ struct SystemLoginItems: LoginItemService {
     }
 }
 
-@available(macOS, introduced: 12.0, deprecated: 13.0)
+// macOS 12 has no SMAppService status API. Keep the system-backed query
+// here rather than treating a saved preference as the actual login item state.
+// The obsoleted boundary prevents this compatibility path being used on 13+.
+@available(macOS, introduced: 12.0, obsoleted: 13.0)
 private enum LegacyLoginItems {
     static var enabled: Bool {
         guard let job = SMJobCopyDictionary(kSMDomainUserLaunchd, SystemLoginItems.helperIdentifier as CFString)?.takeRetainedValue() as? [String: Any] else { return false }

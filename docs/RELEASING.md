@@ -25,7 +25,7 @@ Tag 去掉 v 后必须完整等于 VERSION（包括预发布后缀），alpha / 
 CI 通过 `--ci-build` 生成仅用于开发验证的 ad-hoc 安装映像；公开 Release 不使用此选项，正式版仍强制检查 Developer ID 与公证。
 图标保留 Apple 标准的 16、32、128、256、512 点及各自 2x 槽位（最高 1024 像素），从同一 SVG 生成一个 `AppIcon.icns`；渲染时将 RGB 按 8 级步长量化、保留完整 8 位透明度，再无损重编码 PNG，以减少细微渐变噪声；图案与轮廓不变，颜色精度略有降低。
 DMG 挂载卷通过硬链接将 App 图标作为 `.VolumeIcon.icns`，不复制第二份数据，再写入 Finder 自定图标标记并转换为只读压缩映像；打包检查会验证两者共享同一 inode。
-原生运行回归由独立 `./test-runtime.sh` 执行，不编入发布 App；截图夹具仅由 `scripts/render-docs.sh` 从 `Tests/Support` 编译，预览固定开机时长通过专用编译标记隔离，发布构建不包含演示模式、自动展开窗口或调试报告入口；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
+所有回归由 `swift test --configuration release` 通过 Swift Testing 执行，测试目标不编入发布 App；截图夹具仅由 `scripts/render-docs.sh` 从 `Tests/Support` 编译，预览固定开机时长通过专用编译标记隔离，发布构建不包含演示模式、自动展开窗口或调试报告入口；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
 最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 12 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
 后续公开附件只有两份 DMG 安装映像；不上传独立 SHA-256 文件或 manifest。GitHub 自动生成附件摘要，发布后工作流将其与本地最终 DMG 的大小和 SHA-256 逐一核对。Release notes 来自 CHANGELOG 中与完整版本精确匹配的章节。
 Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；首次打开的手动确认方式见 README；安装脚本和 Cask 不自动删除隔离标记。更新器仅处理已验证辅助程序的私有副本，边界见 SECURITY.md。
@@ -107,17 +107,14 @@ Homebrew 工作流的 `GITHUB_TOKEN` 仅具有读取权限，无法跨仓库写�
 
 ## 发布前文档核对
 
-README.md 与 README.en.md 保持相同的功能和命令，不写固定的“当前版本”号；版本以 VERSION、Release 徽标和实际公开安装包为准。核对 CONTRIBUTING.md 的构建 SDK/运行要求、SECURITY.md 的网络与信任边界、docs/METRICS.md 的采样定义、两份 UPDATING 文档的安装和排错步骤。更新中英文 CHANGELOG 对应版本，保留历史章节原貌。Python 测试会验证本地链接、首页命令与入口一致性及最低系统要求。
+README.md 与 README.en.md 保持相同的功能和命令，不写固定的“当前版本”号；版本以 VERSION、Release 徽标和实际公开安装包为准。核对 CONTRIBUTING.md 的构建 SDK/运行要求、SECURITY.md 的网络与信任边界、docs/METRICS.md 的采样定义、两份 UPDATING 文档的安装和排错步骤。更新中英文 CHANGELOG 对应版本，保留历史章节原貌。Swift Testing 会验证本地链接、首页命令与入口一致性及最低系统要求。
 
 ## 本地检查
 
 ```sh
-bash -n build.sh test-history.sh test-runtime.sh test-updates.sh scripts/sign-and-notarize.sh
-python3 -m unittest discover -s Tests -p 'test_*.py' -v
-./test-history.sh
+bash -n build.sh test.sh scripts/sign-and-notarize.sh
 ./build.sh
-./test-updates.sh
-./test-runtime.sh
+swift test --configuration release
 python3 scripts/release.py validate --tag v$(cat VERSION)
 python3 scripts/release.py package --app build/Neylu.app --output dist \
   --arch "$(uname -m)" --tag v$(cat VERSION)
@@ -125,7 +122,7 @@ python3 scripts/release.py package --app build/Neylu.app --output dist \
 
 本地打包后运行 `python3 scripts/release.py verify-assets --tag v$(cat VERSION) --output dist --arch "$(uname -m)"` 检查附件范围。发布后使用 `verify-github-assets --metadata 发布接口返回的JSON文件` 对比 GitHub 摘要，不生成额外附件。
 
-更新器的真实 GitHub 下载回归可运行 `./test-updates.sh --live-update`；在有 GUI 会话的 Mac 上运行 `./test-updates.sh --integration`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
+更新器的真实 GitHub 下载回归可运行 `NEYLU_LIVE_UPDATE=1 swift test --configuration release --filter NeyluTests/updateSafety`；在有 GUI 会话的 Mac 上运行 `NEYLU_HELPER_INTEGRATION=1 swift test --configuration release --filter NeyluTests/nativeUpdaterReplacementAndRollback`，使用一次性测试 App 验证退出、替换和重启，不触碰已安装应用。
 
 发布脚本拒绝覆盖同名附件。重新做本地实验时换一个输出目录即可，不必碰运行中的 App。
 源码不包含本机 SQLite、缓存、证书或生成的应用。

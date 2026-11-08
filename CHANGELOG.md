@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.9] - 2026-11-08
+
+<!-- neylu:en -->
+### English
+
+- **In-app licenses:** View the MIT license and third-party notices in a reusable native window with document tabs, selectable text, and a full-text copy action. The About window no longer opens license files in another app.
+- **Clearer energy-saving options:** Label automatic energy saving “Follow System” and order the options Follow System, On, Off. The default remains Off; sampling behavior is unchanged.
+- **System compatibility:** Restrict legacy login-item APIs to macOS 12 with a compiler-enforced upper availability boundary; macOS 13 and later continue using SMAppService. Review availability checks for native glass and chart focus behavior, and verify both architecture builds against the macOS 12 deployment target.
+- **Native regression tests:** Unify regression tests under Swift Testing and `swift test`, migrate Python test cases and custom native assertions, and use async/await for UI callbacks. Preserve updater replacement and rollback coverage, preload the test app icon to avoid IconServices delays, and synchronize CI and development instructions. Testing and fixtures remain outside the shipped app.
+
+This preview supports macOS 12 and later on Apple Silicon and Intel. It is ad hoc signed and not notarized by Apple; see the README for first-launch instructions. macOS 12 on physical hardware and other processor models still require additional validation. The legacy macOS 12 login-item status query still produces an expected deprecation warning; it has no equivalent modern API on that system.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **应用内许可证：** 在可复用的原生窗口中查看 MIT 许可证和第三方声明，支持文档页签、文字选择与全文复制；关于窗口不再调用其他应用打开许可文件。
+- **省电选项更清晰：** 自动模式简化为「跟随系统」，按「跟随系统、开启、关闭」排列；默认仍为关闭，采样行为不变。
+- **系统兼容性：** 用编译器可检查的版本上限将旧登录项接口限制在 macOS 12，macOS 13 及以上继续使用 SMAppService；检查系统玻璃与图表焦点的版本分支，并验证两种架构均可按 macOS 12 最低目标构建。
+- **原生回归测试：** 测试统一迁入 Swift Testing 与 `swift test`，迁移 Python 测试用例及原生自定义断言，UI 回调改用 async/await；保留更新器替换与失败回滚覆盖，为原生测试预置应用图标以避免图标服务阻塞，同步 CI 和开发文档。测试框架及夹具不进入发布 App。
+
+本预发布版支持 Apple Silicon 和 Intel 的 macOS 12 及以上系统，仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。macOS 12 真机与其他处理器型号仍需补充验证。macOS 12 的旧登录项状态查询仍有预期的弃用警告，该系统没有等价的新查询接口。
+
 ## [0.1.0-alpha.8] - 2026-11-08
 
 <!-- neylu:en -->

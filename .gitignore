@@ -20,3 +20,6 @@ Assets/*-exact.svg
 Assets/Icon-*-prompt.txt
 Assets/AppIcon-v5-README.txt
 Assets/make-icon.swift
+
+# Swift Package local IDE metadata.
+.swiftpm/

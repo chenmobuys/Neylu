@@ -54,11 +54,8 @@ jobs:
           persist-credentials: false
       - name: Test and build on native architecture
         run: |
-          python3 -m unittest discover -s Tests -p 'test_*.py' -v
-          ./test-history.sh
           ./build.sh
-          ./test-updates.sh
-          ./test-runtime.sh
+          swift test --configuration release
       - name: Sign and notarize stable app
         if: needs.prepare.outputs.channel == 'stable'
         env:

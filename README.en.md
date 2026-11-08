@@ -22,7 +22,7 @@ The preview uses demonstration readings. Native materials adapt to the system ap
 
 - Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show and reorder metrics.
 - Live charts, CPU temperature on supported hardware, and disk capacity and read/write rates; monitor and eject external drives.
-- Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance.
+- Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance. Login items use SMAppService on macOS 13+ and the legacy system API on macOS 12.
 - English and Simplified Chinese; configurable refresh intervals, decimal or binary units, and energy-saving options.
 - Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. No telemetry or monitoring-data uploads.
 - Built-in update checks, verified installers, and release notes after upgrades.
@@ -60,7 +60,7 @@ Use your actual installation path. This affects only Neylu; it does not disable 
 - Left-click the menu bar readings to open the overview; right-click, or use **…**, to open settings.
 - **Menu Bar Items…** selects and reorders metrics or restores the default layout; **Appearance** changes the theme; **Preferences** contains refresh interval, energy saving, unit basis, a global shortcut, language, login, and automatic update checks.
 - Choose a chart time range in **Preferences → Chart Time Range**; hover or use Left/Right Arrow keys to inspect real samples; click a chart to pin it, then click again or use the play button to resume live charts. Press Escape to close details and utility windows.
-- Copy diagnostics without IP addresses or paths from the menu or About window. Choose **Check for Updates…**, or update with `brew update && brew upgrade --cask --greedy neylu`.
+- View the MIT license and third-party notices in an in-app window from About, or copy their full text. Copy diagnostics without IP addresses or paths from the menu or About window. Choose **Check for Updates…**, or update with `brew update && brew upgrade --cask --greedy neylu`.
 
 ## Documentation
 

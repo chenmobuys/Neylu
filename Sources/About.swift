@@ -10,6 +10,7 @@ final class AboutController: NSWindowController {
     private let diagnostics = NSButton()
     private let settings: MonitorSettings
     private let appBundle: Bundle
+    private var licenses: LicenseController?
     private var subscriptions = Set<AnyCancellable>()
 
     init(settings: MonitorSettings, bundle: Bundle = .main) {
@@ -97,6 +98,7 @@ final class AboutController: NSWindowController {
         NSWorkspace.shared.open(URL(string: "https://github.com/chenmobuys/Neylu")!)
     }
     @objc private func openLicense() {
-        if let url = appBundle.url(forResource: "LICENSE", withExtension: nil) { NSWorkspace.shared.open(url) }
+        if licenses == nil { licenses = LicenseController(settings: settings, bundle: appBundle) }
+        licenses?.present()
     }
 }

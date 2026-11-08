@@ -8,13 +8,12 @@
 
 ```sh
 ./build.sh
-./test-history.sh
-./test-updates.sh
-python3 -m unittest discover -s Tests -p 'test_*.py' -v
-./test-runtime.sh
+swift test --configuration release
 ```
 
-默认输出为 `build/Neylu.app`，缓存只写入仓库内 `.build/`。`test-runtime.sh` 单独编译原生运行回归，测试代码不会进入发布 App。
+默认输出为 `build/Neylu.app`，缓存只写入仓库内 `.build/`。也可用 `./test.sh` 一次完成 App 构建与 Swift Testing。`Package.swift` 的 `NeyluCore` 仅供测试直接访问原生逻辑，发布仍由 `build.sh` 编译；Testing、测试目标与夹具不会进入 App。
+
+测试用例与断言统一位于 `Tests/Swift`，使用 `@Test`、`#expect` 和 `#require`。历史、原生界面与更新安全回归直接测试 Swift 源码；AppKit 测试在主线程通过 async/await 等待回调，并串行执行，避免全局偏好与窗口相互干扰。现有发布工具仍以 Python 实现，Swift 测试通过 Process 调用其 CLI 或函数，夹具、模拟 API 与结果断言在 Swift 中；无需 unittest 或额外 Python 测试依赖。
 可用 `./build.sh /absolute/path/Neylu.app` 指定输出位置。
 
 ## 提交与 PR
@@ -43,6 +42,18 @@ UI 优先使用系统组件、语义颜色和系统材质。应用标识统一�
 
 中英文 README 保持相同的信息、功能顺序、安装命令和文档入口；首页面向用户，详细原理放入 docs。最新版本通过 Release 徽标和 VERSION 获取，不在首页写固定版本号。修改运行要求、网络访问、数据保存、安装或更新行为时，同时核对 README、docs/METRICS.md、docs/UPDATING.md、docs/UPDATING.en.md、SECURITY.md 与 docs/RELEASING.md。
 
-`python3 -m unittest discover -s Tests -p 'test_*.py'` 包含文档检查：本地链接和图片、中英文 README 命令与入口、源码最低系统要求及过期版本声明。历史 CHANGELOG 保留各版本当时的行为，不以当前实现覆盖旧记录。未发布改动只写入 Unreleased。
+Swift Testing 包含文档检查：本地链接和图片、中英文 README 命令与入口、源码最低系统要求及过期版本声明。历史 CHANGELOG 保留各版本当时的行为，不以当前实现覆盖旧记录。未发布改动只写入 Unreleased。
 
 文档预览使用 `./scripts/render-docs.sh /private/tmp/neylu-preview --language zh-Hans`，英文使用 `--language en`。演示夹具位于 `Tests/Support`，仅预览编译启用 `NEYLU_PREVIEW`；发布 App 不提供截图模式、调试报告或自动展开窗口等开发参数。依赖注入接口保留，以便隔离临时数据库、登录服务、网络和快捷键注册边界。
+
+## 可选集成检查
+
+普通 `swift test` 不访问 GitHub，也不替换已安装应用。以下检查必须显式开启：
+
+```sh
+NEYLU_LIVE_CHECK=1 swift test --configuration release --filter NeyluTests/updateSafety
+NEYLU_LIVE_UPDATE=1 swift test --configuration release --filter NeyluTests/updateSafety
+NEYLU_HELPER_INTEGRATION=1 swift test --configuration release --filter NeyluTests/nativeUpdaterReplacementAndRollback
+```
+
+前两项分别检查真实更新源和安装包下载／校验。最后一项需要原生 GUI 会话，只操作一次性临时 App，验证退出、替换、重启与启动失败回滚，不触碰已安装 Neylu。

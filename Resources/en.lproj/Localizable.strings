@@ -139,7 +139,7 @@
 
 "menu.energy_mode" = "Energy Saving";
 "energy.off" = "Off";
-"energy.automatic" = "Follow System Low Power Mode";
+"energy.automatic" = "Follow System";
 "energy.on" = "On";
 
 "history.range" = "Chart Time Range";
@@ -190,3 +190,11 @@
 "shortcut.press_keys" = "Press your shortcut…";
 
 "history.range_hint" = "Choose how much recent history the charts show. New sessions use available samples.";
+
+"licenses.title" = "Open Source Licenses";
+"licenses.subtitle" = "Licensing and attribution included with Neylu.";
+"licenses.mit" = "MIT License";
+"licenses.third_party" = "Third-Party Notices";
+"licenses.sections" = "License documents";
+"licenses.copy" = "Copy Full Text";
+"licenses.unavailable" = "This document could not be loaded from the app. Please reinstall Neylu.";

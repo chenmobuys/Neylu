@@ -139,7 +139,7 @@
 
 "menu.energy_mode" = "省电模式";
 "energy.off" = "关闭";
-"energy.automatic" = "跟随系统低电量模式";
+"energy.automatic" = "跟随系统";
 "energy.on" = "开启";
 
 "history.range" = "图表时间范围";
@@ -190,3 +190,11 @@
 "shortcut.press_keys" = "请按下组合键…";
 
 "history.range_hint" = "选择图表显示的历史范围；数据不足时按已有采样展开。";
+
+"licenses.title" = "开源许可证";
+"licenses.subtitle" = "随 Neylu 提供的许可与署名信息。";
+"licenses.mit" = "MIT 许可证";
+"licenses.third_party" = "第三方声明";
+"licenses.sections" = "许可文档";
+"licenses.copy" = "复制全文";
+"licenses.unavailable" = "无法读取应用内的许可文档，请重新安装 Neylu。";

@@ -27,17 +27,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate shell scripts
-        run: bash -n build.sh test-history.sh test-runtime.sh test-updates.sh scripts/sign-and-notarize.sh
-      - name: Release tooling tests
-        run: python3 -m unittest discover -s Tests -p 'test_*.py' -v
-      - name: History tests
-        run: ./test-history.sh
+        run: bash -n build.sh test.sh scripts/sign-and-notarize.sh
       - name: Build
         run: ./build.sh
-      - name: Update tests
-        run: ./test-updates.sh
-      - name: Runtime smoke test
-        run: ./test-runtime.sh
+      - name: Swift Testing
+        run: swift test --configuration release
       - name: Verify bundle
         run: |
           codesign --verify --strict build/Neylu.app
