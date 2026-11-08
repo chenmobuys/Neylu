@@ -5,6 +5,43 @@
     <link>https://github.com/chenmobuys/Neylu</link>
     <description>Neylu stable and preview releases</description>
     <item>
+      <title>Neylu 0.1.0-alpha.7</title>
+      <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.7</link>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-alpha.7</sparkle:shortVersionString>
+      <sparkle:channel>alpha</sparkle:channel>
+      <sparkle:minimumSystemVersion>12.0.0</sparkle:minimumSystemVersion>
+      <pubDate>Sun, 08 Nov 2026 01:29:56 GMT</pubDate>
+      <description>&gt; 早期测试版：仅 ad-hoc 签名，未经 Apple 公证；首次打开请参阅 README。
+
+&lt;!-- neylu:en --&gt;
+### English
+
+- **Lower background overhead:** Cache display-only network addresses and GPU core counts, pause detail-only hardware polling while the overview is closed, and skip unchanged menu bar images and hidden plot preparation. CPU, GPU, memory, and network history continues recording.
+- **Optional energy saving:** Choose Off (the default), Follow System Low Power Mode, or On. When active, closed-overview sampling uses intervals of at least five seconds; opening the overview restores your configured interval.
+- **History and pinned charts:** Switch between two-minute, fifteen-minute, and one-hour views. Click a chart to pin the time range and synchronized readouts across all four charts while recording continues; click again or use the play button to resume live charts. History loads asynchronously and rendering preserves actual sample timestamps and extrema.
+- **Menu bar display options:** Show memory as a percentage or used capacity, and network rates as bytes or bits per second. Hide the IP address, restore the default metric layout without clearing history or other preferences, and assign an optional global shortcut. Shortcut conflicts preserve the previous binding; no Accessibility permission or global keyboard monitor is required.
+- **Diagnostics and native interaction:** Copy a privacy-filtered diagnostic summary from settings or About. Refine chart focus indicators on macOS 14+ and avoid automatically selecting the first control in utility windows, while preserving keyboard navigation and macOS 12/13 behavior.
+- **Cleanup and documentation:** Remove obsolete development launch switches and raw diagnostic output. Keep screenshot fixtures in the documentation tool rather than the shipped app, retain compact native packaging, and synchronize English and Chinese documentation and previews.
+
+This preview supports macOS 12 and later on Apple Silicon and Intel. It is ad hoc signed and not notarized by Apple; see the README for first-launch instructions. macOS 12 on physical hardware, other processor models, and real multi-display/VPN transitions still require additional validation. A simulated day of recording is covered by regression tests; it is not a day-long hardware endurance test.
+
+&lt;!-- neylu:zh-Hans --&gt;
+### 中文
+
+- **减少后台开销：** 缓存仅用于显示的网络地址和 GPU 核心数，详情关闭时暂停详情专用硬件轮询，跳过不变的菜单栏位图和隐藏图表准备；CPU、GPU、内存和网络历史持续记录。
+- **可选省电模式：** 提供默认关闭、跟随系统低电量模式、开启三种选择。生效时详情关闭后的采样间隔至少五秒，打开详情恢复设定间隔。
+- **历史范围与图表固定：** 支持两分钟、十五分钟、一小时视图；点击图表固定四图的时间范围和同步读数，后台继续记录，再次点击或使用播放按钮恢复实时。历史异步读取，绘图保留真实采样时间和极值。
+- **菜单栏显示选项：** 内存可显示使用率或已用容量，网速可显示字节或比特每秒；支持隐藏 IP、仅恢复默认指标布局而不清除历史和其他偏好，以及默认关闭的全局快捷键。快捷键冲突保留旧组合，无需辅助功能权限或全局键盘监听。
+- **诊断与原生交互：** 设置与关于窗口可复制经过隐私过滤的诊断摘要；优化 macOS 14+ 图表焦点提示，工具窗口不再自动选中首个控件，保留键盘导航和 macOS 12/13 原生行为。
+- **清理与文档：** 删除闲置开发启动参数和旧的原始诊断输出，将截图夹具移至文档工具，不随 App 分发；保持轻量原生打包，同步中英文文档与预览图。
+
+本预发布版支持 Apple Silicon 和 Intel 的 macOS 12 及以上系统，仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。macOS 12 真机、其他处理器型号及真实多屏／VPN 切换仍需补充验证。回归测试覆盖模拟一天采样，不等同于一天真机耐久测试。
+</description>
+      <neylu:sha256>a9396b38354e3df9613f1ae3cc0d3ab320e0c1c36a54d1c42ce231c811434537</neylu:sha256>
+      <enclosure url="https://github.com/chenmobuys/Neylu/releases/download/v0.1.0-alpha.7/Neylu-0.1.0-alpha.7-arm64.dmg" length="416196" type="application/x-apple-diskimage" />
+    </item>
+    <item>
       <title>Neylu 0.1.0-alpha.6</title>
       <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-alpha.6</link>
       <sparkle:version>6</sparkle:version>
