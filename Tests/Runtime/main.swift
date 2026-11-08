@@ -5,13 +5,14 @@ import ServiceManagement
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
-    let energyDefaults = UserDefaults(suiteName: "Neylu-efficiency-" + UUID().uuidString)!
+    let energySuite = "Neylu-efficiency-" + UUID().uuidString
+    let energyDefaults = UserDefaults(suiteName: energySuite)!
     precondition(EnergyMode.load(from: energyDefaults) == .off)
     energyDefaults.set("invalid", forKey: "energyMode")
     precondition(EnergyMode.load(from: energyDefaults) == .off)
     EnergyMode.automatic.save(to: energyDefaults)
     precondition(EnergyMode.load(from: energyDefaults) == .automatic)
-    energyDefaults.removeObject(forKey: "energyMode")
+    energyDefaults.removePersistentDomain(forName: energySuite)
     for interval in RefreshInterval.allCases {
         for mode in EnergyMode.allCases {
             precondition(mode.interval(requested: interval.seconds, detailsVisible: true, lowPower: true) == interval.seconds)

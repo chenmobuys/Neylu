@@ -270,7 +270,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 historyAvailable: model.historyStorageAvailable, detailsVisible: model.layout.isVisible)
         }
         model.onSettingsChange = { [weak self] in self?.applySettings() }
-        model.settings.onMenuBarChange = { [weak self] in self?.applyMenuBarConfiguration(); self?.restartSamplingTimer() }
+        model.settings.onMenuBarChange = { [weak self] in
+            guard let self else { return }
+            self.applyMenuBarConfiguration()
+            self.restartSamplingTimer()
+            self.sampling.sample()
+        }
         model.settings.onAppearanceChange = { [weak self] in self?.applyAppearance() }
         model.settings.onRefreshIntervalChange = { [weak self] in self?.restartSamplingTimer() }
         model.settings.onLanguageChange = { [weak self] in

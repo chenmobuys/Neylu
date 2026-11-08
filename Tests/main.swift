@@ -166,21 +166,31 @@ print("PASS: v1-to-v2 migration preserves CPU/GPU history and restores real memo
 // Longer views retain the selected range and reduce actual samples, not values.
 let hourWindow = HistoryWindow(earliest: now.addingTimeInterval(-4000), now: now, duration: 3600)
 precondition(hourWindow.end.timeIntervalSince(hourWindow.start) == 3600)
-let longerPoints = (0..<3600).map { CPUPoint(timestamp: now.addingTimeInterval(Double($0 - 3599)), user: $0 == 1000 ? 99 : ($0 == 1001 ? 0 : 20), system: 0) }
+var longerPoints: [CPUPoint] = []
+for index in 0..<3600 {
+    let timestamp = now.addingTimeInterval(Double(index - 3599))
+    let user: Double = index == 1000 ? 99 : (index == 1001 ? 0 : 20)
+    longerPoints.append(CPUPoint(timestamp: timestamp, user: user, system: 0))
+}
 let reduced = HistoryWindow.reduced(longerPoints, timestamp: \.timestamp) { $0.user }
 precondition(reduced.count <= 240 && reduced.first == longerPoints.first && reduced.last == longerPoints.last)
 precondition(reduced.contains(longerPoints[1000]) && reduced.contains(longerPoints[1001]))
 precondition(reduced.allSatisfy { longerPoints.contains($0) })
 precondition(HistoryWindow.segments(longerPoints, timestamp: \.timestamp, now: now, duration: 3600).first!.count == 3600)
-let rangeDefaults = UserDefaults(suiteName: "Neylu-range-" + UUID().uuidString)!
+let rangeSuite = "Neylu-range-" + UUID().uuidString
+let rangeDefaults = UserDefaults(suiteName: rangeSuite)!
 precondition(HistoryRange.load(from: rangeDefaults) == .twoMinutes)
 HistoryRange.oneHour.save(to: rangeDefaults)
 precondition(HistoryRange.load(from: rangeDefaults) == .oneHour)
-rangeDefaults.removeObject(forKey: "historyRange")
+rangeDefaults.removePersistentDomain(forName: rangeSuite)
 print("PASS: longer windows preserve true timestamps, extrema and endpoints with bounded rendering and persistent range preferences")
 
-let twoChannelPoints = (0..<3600).map { index in
-    NetworkPoint(timestamp: now.addingTimeInterval(Double(index - 3599)), download: index == 1000 ? 10000 : 1, upload: index == 1001 ? 1000 : 1)
+var twoChannelPoints: [NetworkPoint] = []
+for index in 0..<3600 {
+    let timestamp = now.addingTimeInterval(Double(index - 3599))
+    let download: Double = index == 1000 ? 10000 : 1
+    let upload: Double = index == 1001 ? 1000 : 1
+    twoChannelPoints.append(NetworkPoint(timestamp: timestamp, download: download, upload: upload))
 }
 let reducedNetwork = HistoryWindow.reducedChannels(twoChannelPoints, channels: 2) { [$0.download, $0.upload] }
 precondition(reducedNetwork.count <= 240 && reducedNetwork.contains(where: { $0.download == 10000 }) && reducedNetwork.contains(where: { $0.upload == 1000 }))
