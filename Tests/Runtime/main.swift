@@ -13,6 +13,16 @@ if CommandLine.arguments.contains("--self-test") {
     }
     report("START: native runtime regression tests")
     _ = NSApplication.shared
+    // A standalone test executable has no app-bundle icon. On Intel CI,
+    // NSAlert's nib otherwise asks IconServices synchronously for its default
+    // image and can stall for minutes. Use the same bundled icon as the app.
+    let runtimeIconURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        .appendingPathComponent("build/Neylu.app/Contents/Resources/AppIcon.icns")
+    let runtimeIcon = NSImage(contentsOf: runtimeIconURL)!
+    runtimeIcon.setName(NSImage.applicationIconName)
+    NSApp.applicationIconImage = runtimeIcon
+    precondition(NSImage(named: NSImage.applicationIconName) === runtimeIcon)
+    report("PASS: test process uses the built app icon without default IconServices lookup")
     precondition(!MenuBarConfiguration.defaults.visibleMetrics.contains(.temperature))
     precondition(!SamplingDemand(details: false, systemDisk: false).needsTemperature)
     precondition(SamplingDemand(details: false, systemDisk: false, temperature: true).needsTemperature)
