@@ -47,6 +47,9 @@ def apply(cask, content):
         if len(matches) != 1:
             raise ValueError('Cannot safely read the current cask version')
         old_key, new_key = version_key(matches[0]), version_key(new_version)
+        if old_key[3] == 3 and new_key[3] < 3:
+            print('Skipping pre-release; the default cask stays on stable releases')
+            return False
         if new_key < old_key:
             print('Skipping older release; tap remains unchanged')
             return False

@@ -113,13 +113,16 @@ final class UpdateController: NSObject, NSWindowDelegate {
     private var available: AvailableUpdate?
     private var working = false
     private var attempts = UpdateAttemptGate()
-    private let lookup: (ReleaseVersion, String) async throws -> AvailableUpdate?
+    private let selectedChannel: () -> UpdateChannel
+    private let lookup: (ReleaseVersion, String, UpdateChannel) async throws -> AvailableUpdate?
     private let current: String
     init(current: String = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String ?? "",
-         lookup: @escaping (ReleaseVersion, String) async throws -> AvailableUpdate? = { version, architecture in
-             try await UpdateDiscovery.find(current: version, architecture: architecture, forceRefresh: true)
+         channel: @escaping () -> UpdateChannel = { UpdateChannel.load() },
+         lookup: @escaping (ReleaseVersion, String, UpdateChannel) async throws -> AvailableUpdate? = { version, architecture, channel in
+             try await UpdateDiscovery.find(current: version, architecture: architecture, forceRefresh: true, channel: channel)
          }) {
         self.current = current
+        self.selectedChannel = channel
         self.lookup = lookup
         super.init()
     }
@@ -236,7 +239,10 @@ final class UpdateController: NSObject, NSWindowDelegate {
             subtitle.stringValue = UpdateFailure.describe(failure, language: AppLanguage.load()) + "\n" + L(UpdateRecovery.action(for: failure, hasUpdate: available != nil).hintKey)
         } else if manualInstallation {
             subtitle.stringValue = L("update.manual_install_hint")
-        } else { subtitle.stringValue = String(format: L("update.current_version_format"), current) }
+        } else {
+            subtitle.stringValue = String(format: L("update.current_version_format"), current)
+            if upToDate { subtitle.stringValue += "\n" + L(selectedChannel().hintKey) }
+        }
         action.isHidden = working || manualInstallation
         secondary.isHidden = upToDate
         if upToDate { action.title = L("action.ok") }
@@ -259,9 +265,15 @@ final class UpdateController: NSObject, NSWindowDelegate {
         action.isEnabled = !value
         refreshLanguage()
     }
+    func channelChanged() {
+        cancelCurrentAttempt()
+        available = nil; failure = nil; upToDate = false; manualInstallation = false
+        if window?.isVisible == true { check() }
+    }
     private func check() {
         task?.cancel()
         let token = attempts.begin()
+        let channel = selectedChannel()
         available = nil
         upToDate = false
         failure = nil
@@ -271,10 +283,10 @@ final class UpdateController: NSObject, NSWindowDelegate {
         task = Task {
             do {
                 guard let version = ReleaseVersion(current) else { throw UpdateFailure.metadata }
-                let result = try await lookup(version, Self.architecture)
+                let result = try await lookup(version, Self.architecture, channel)
                 try Task.checkCancellation()
-                guard attempts.accepts(token) else { return }
-                available = result
+                guard attempts.accepts(token), selectedChannel() == channel else { return }
+                available = result.flatMap { channel.allows($0.version) ? $0 : nil }
                 onDiscovery?(available)
                 if let update = available {
                     setWorking(false, message: "update.status.available_format", argument: update.version.text)
@@ -298,7 +310,8 @@ final class UpdateController: NSObject, NSWindowDelegate {
     @objc private func performSecondary() {
         window?.close()
     }
-    func windowWillClose(_ notification: Notification) {
+    func windowWillClose(_ notification: Notification) { cancelCurrentAttempt() }
+    private func cancelCurrentAttempt() {
         attempts.cancel()
         task?.cancel()
         task = nil
@@ -311,6 +324,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         fitWindow()
     }
     private func install(_ update: AvailableUpdate) {
+        guard selectedChannel().allows(update.version) else { check(); return }
         task?.cancel()
         let token = attempts.begin()
         failure = nil

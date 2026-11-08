@@ -85,7 +85,10 @@ extension NeyluTests {
       try ToolRunner.call(
         "tap.apply(Path(args[0]), args[1])", [cask.path, content("0.1.0", changed)]))
     #expect(try String(contentsOf: cask, encoding: .utf8) == original)
-    #expect(try apply(content("0.1.1-alpha.1")))
+    #expect(try !apply(content("0.1.1-alpha.1")))
+    #expect(try !apply(content("2.0.0-rc.1")))
+    #expect(try String(contentsOf: cask, encoding: .utf8) == original)
+    #expect(try apply(content("0.1.1")))
     #expect(try !apply(content("0.1.0")))
     try "invalid cask".write(to: cask, atomically: true, encoding: .utf8)
     ToolRunner.requireRejected(

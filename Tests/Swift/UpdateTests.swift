@@ -174,7 +174,7 @@ extension NeyluTests {
         && parsedFeed.first!.body!.contains("中文"), "XML escaping or Unicode release notes changed")
     #expect(
       try AvailableUpdate.check(
-        in: parsedFeed, current: ReleaseVersion("0.1.0-alpha.4")!, architecture: "arm64")?.version
+        in: parsedFeed, current: ReleaseVersion("0.1.0-alpha.4")!, architecture: "arm64", channel: .development)?.version
         .text == "0.2.0-alpha.10", "Static preview selection or SemVer ordering")
     #expect(
       try AvailableUpdate.check(
@@ -325,11 +325,11 @@ extension NeyluTests {
       }
       let oldFeed = try await changing.load()
       let oldResult = try AvailableUpdate.check(
-        in: oldFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64")
+        in: oldFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64", channel: .development)
       #expect(oldResult == nil, "Old feed fixture already has an update")
       let freshFeed = try await changing.load(forceRefresh: true)
       let freshResult = try AvailableUpdate.check(
-        in: freshFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64")
+        in: freshFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64", channel: .development)
       #expect(
         freshResult != nil, "Manual check stayed up to date after the publisher added a new release"
       )
@@ -397,19 +397,19 @@ extension NeyluTests {
       release("1.0.0", draft: true),
     ]
     #expect(
-      AvailableUpdate.newest(in: releases, current: current, architecture: "arm64")?.version.text
+      AvailableUpdate.newest(in: releases, current: current, architecture: "arm64", channel: .development)?.version.text
         == "0.2.0-alpha.1", "Preview selection")
     #expect(
       AvailableUpdate.newest(
         in: releases, current: ReleaseVersion("0.0.1")!, architecture: "arm64")?.version.text
         == "0.1.0", "Stable must not receive previews")
     #expect(
-      AvailableUpdate.newest(in: releases, current: current, architecture: "x86_64") == nil,
+      AvailableUpdate.newest(in: releases, current: current, architecture: "x86_64", channel: .development) == nil,
       "Wrong architecture")
     #expect(
       AvailableUpdate.newest(
         in: [release("0.2.0", urlOverride: "https://evil.example/payload.dmg")], current: current,
-        architecture: "arm64") == nil, "Foreign download URL")
+        architecture: "arm64", channel: .development) == nil, "Foreign download URL")
     #expect(
       AvailableUpdate.newest(
         in: [
@@ -417,7 +417,7 @@ extension NeyluTests {
             "0.2.0",
             urlOverride:
               "https://github.com/another/repo/releases/download/v0.2.0/Neylu-0.2.0-arm64.dmg")
-        ], current: current, architecture: "arm64") == nil, "Foreign repository")
+        ], current: current, architecture: "arm64", channel: .development) == nil, "Foreign repository")
     for bad in [
       "http://github.com/a", "https://github.com.evil.example/a", "https://github.com:8443/a",
       "https://user:password@github.com/a", "file:///tmp/a",
@@ -430,10 +430,10 @@ extension NeyluTests {
           string:
             "https://release-assets.githubusercontent.com/github-production-release-asset/a?token=example"
         )!), "GitHub CDN rejected")
-    let checked = try AvailableUpdate.check(in: releases, current: current, architecture: "arm64")
+    let checked = try AvailableUpdate.check(in: releases, current: current, architecture: "arm64", channel: .development)
     #expect(checked?.version.text == "0.2.0-alpha.1", "Newest valid release was missed")
     let noUpdate = try AvailableUpdate.check(
-      in: [release("0.1.0-alpha.2")], current: current, architecture: "arm64")
+      in: [release("0.1.0-alpha.2")], current: current, architecture: "arm64", channel: .development)
     #expect(noUpdate == nil, "Older release reported as an update")
     let incomplete = GitHubRelease(
       tag_name: "v0.3.0", html_url: AvailableUpdate.repository + "/releases/tag/v0.3.0",
@@ -443,16 +443,16 @@ extension NeyluTests {
       "Incomplete newest release was treated as current or silently skipped"
     ) {
       _ = try AvailableUpdate.check(
-        in: releases + [incomplete], current: current, architecture: "arm64")
+        in: releases + [incomplete], current: current, architecture: "arm64", channel: .development)
     }
     #expect(throws: (any Error).self, "Missing architecture must not report up to date") {
       _ = try AvailableUpdate.check(
-        in: [release("0.3.0", arch: "x86_64")], current: current, architecture: "arm64")
+        in: [release("0.3.0", arch: "x86_64")], current: current, architecture: "arm64", channel: .development)
     }
     print("PASS version ordering, channels, architecture, metadata and redirect allowlist")
 
     let update = AvailableUpdate.newest(
-      in: [release("0.2.0")], current: current, architecture: "arm64")!
+      in: [release("0.2.0")], current: current, architecture: "arm64", channel: .development)!
     let package = root.appendingPathComponent("package.dmg")
     let bytes = Data([1, 2, 3, 4])
     try bytes.write(to: package)

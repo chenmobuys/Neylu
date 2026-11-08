@@ -72,6 +72,14 @@ final class MonitorSettings: ObservableObject {
         guard let report = diagnosticsProvider?() else { return false }
         return Diagnostics.copy(report, to: pasteboard)
     }
+    @Published var updateChannel = UpdateChannel.load() {
+        didSet {
+            guard updateChannel != oldValue else { return }
+            updateChannel.save()
+            onUpdateChannelChange?()
+        }
+    }
+    var onUpdateChannelChange: (() -> Void)?
     var onAutomaticUpdateChange: (() -> Void)?
     var onConfigureShortcut: (() -> Void)?
     var onMenuBarChange: (() -> Void)?
@@ -229,6 +237,15 @@ struct SettingsMenuButton: NSViewRepresentable {
             automatic.tag = 15
             automatic.target = self
             preferences.addItem(automatic)
+            let channels = NSMenu(title: L("menu.update_channel"))
+            for channel in UpdateChannel.allCases {
+                let option = NSMenuItem(title: L(channel.titleKey), action: #selector(selectUpdateChannel(_:)), keyEquivalent: "")
+                option.target = self; option.representedObject = channel.rawValue
+                channels.addItem(option)
+            }
+            let channelItem = NSMenuItem(title: L("menu.update_channel"), action: nil, keyEquivalent: "")
+            channelItem.tag = 21; channelItem.submenu = channels
+            preferences.addItem(channelItem)
             let notes = NSMenuItem(title: L("menu.release_notes"), action: #selector(showReleaseNotes), keyEquivalent: "")
             notes.tag = 14
             notes.target = self
@@ -266,7 +283,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences"), (17, "menu.energy_mode"), (18, "menu.copy_diagnostics"), (19, "shortcut.configure"), (20, "history.range"), (2, "menu.units")] {
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences"), (17, "menu.energy_mode"), (18, "menu.copy_diagnostics"), (19, "shortcut.configure"), (20, "history.range"), (21, "menu.update_channel"), (2, "menu.units")] {
                 item(tag, in: menu)?.title = L(key)
                 item(tag, in: menu)?.submenu?.title = L(key)
             }
@@ -286,6 +303,13 @@ struct SettingsMenuButton: NSViewRepresentable {
                 if let choice = (option.representedObject as? Int).flatMap(HistoryRange.init(rawValue:)) {
                     option.title = choice.title
                     option.state = settings.historyRange == choice ? .on : .off
+                }
+            }
+            for option in item(21, in: menu)?.submenu?.items ?? [] {
+                if let raw = option.representedObject as? String, let channel = UpdateChannel(rawValue: raw) {
+                    option.title = L(channel.titleKey)
+                    option.toolTip = L(channel.hintKey)
+                    option.state = settings.updateChannel == channel ? .on : .off
                 }
             }
             item(15, in: menu)?.state = settings.automaticUpdateChecks ? .on : .off
@@ -354,6 +378,10 @@ struct SettingsMenuButton: NSViewRepresentable {
         }
         @objc private func showMenuBarSettings() {
             NSApp.sendAction(#selector(AppDelegate.showMenuBarSettings(_:)), to: NSApp.delegate, from: self)
+        }
+        @objc private func selectUpdateChannel(_ sender: NSMenuItem) {
+            guard let raw = sender.representedObject as? String, let channel = UpdateChannel(rawValue: raw) else { return }
+            settings.updateChannel = channel
         }
         @objc private func toggleAutomaticUpdates() { settings.automaticUpdateChecks.toggle() }
         @objc private func checkForUpdates() {

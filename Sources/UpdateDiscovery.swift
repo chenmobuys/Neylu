@@ -6,11 +6,11 @@ enum UpdateDiscovery {
     private static let stores: [String: AppcastStore] = Dictionary(uniqueKeysWithValues: ["arm64", "x86_64"].map { architecture in
         (architecture, AppcastStore { try await download(architecture: architecture) })
     })
-    static func find(current: ReleaseVersion, architecture: String, forceRefresh: Bool = false) async throws -> AvailableUpdate? {
+    static func find(current: ReleaseVersion, architecture: String, forceRefresh: Bool = false, channel: UpdateChannel = .stable) async throws -> AvailableUpdate? {
         guard let store = stores[architecture] else { throw UpdateFailure.metadata }
         let releases = try await store.load(forceRefresh: forceRefresh)
         try Task.checkCancellation()
-        return try AvailableUpdate.check(in: releases, current: current, architecture: architecture)
+        return try AvailableUpdate.check(in: releases, current: current, architecture: architecture, channel: channel)
     }
     private static func download(architecture: String) async throws -> [GitHubRelease] {
         guard let url = Appcast.downloadURL(for: architecture) else { throw UpdateFailure.metadata }

@@ -45,6 +45,9 @@ brew install --cask chenmobuys/tap/neylu
 
 Or download a DMG: choose `arm64` for Apple Silicon or `x86_64` for Intel, open it, and drag **Neylu.app** into **Applications**. Xcode and an Apple Developer membership are not required to use the app.
 
+
+Beta Updates are Off by default, so all installations check only for stable releases. Choose **Preferences → Beta Updates → Neylu Pre-release** to opt in to Alpha, Beta, and RC releases.
+
 ## First launch
 
 Current installers are ad hoc signed and **not notarized by Apple**. If macOS blocks it, follow [Apple’s instructions](https://support.apple.com/102445) to choose **Open Anyway**. If you trust the downloaded Neylu, you can instead run:

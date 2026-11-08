@@ -5,7 +5,7 @@ The deployment target is macOS 12, with Apple Silicon and Intel builds. A deploy
 
 | 环境 / Environment | 验证范围 / Validation | 未覆盖项 / Gaps |
 | --- | --- | --- |
-| Apple M3 Max，macOS 27.2，双显示器 / two displays | 当前开发设备；47 项 Swift Testing（含私有测试 App 替换、重启、失败回滚）、双屏窗口定位与局部浅深色外观验证 / Current development device; 47 Swift tests including private fixture replacement, restart and rollback; panel placement and local light/dark appearance on both displays | 本设备不代表其他芯片或系统版本 / Does not establish coverage for other chips or OS versions |
+| Apple M3 Max，macOS 27.2，双显示器 / two displays | 当前开发设备；Swift Testing（含私有测试 App 替换、重启、失败回滚）、双屏窗口定位与局部浅深色外观验证 / Current development device; Swift tests including private fixture replacement, restart and rollback; panel placement and local light/dark appearance on both displays | 本设备不代表其他芯片或系统版本 / Does not establish coverage for other chips or OS versions |
 | GitHub macOS 26 ARM / Intel runners | 每次发布原生构建与回归 / Native builds and regression tests on each release | 云端 runner 不等同于用户 Intel 真机 / Hosted runners are not physical-user-device acceptance |
 | macOS 12 | 最低部署目标与旧接口编译边界检查 / Deployment-target and legacy API availability checks | 尚无真机，登录项、显示及升级行为未实测 / No physical device; login items, rendering, and upgrades are untested |
 | Intel 真机 / Physical Intel Macs | 无设备 / No device available | 尚未实测 / Not tested |

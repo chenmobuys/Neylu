@@ -124,7 +124,7 @@ extension NeyluTests {
     var requests: [CheckedContinuation<AvailableUpdate?, Error>] = []
     let controller = UpdateController(
       current: "0.1.0-alpha.9",
-      lookup: { _, _ in
+      lookup: { _, _, _ in
         try await withCheckedThrowingContinuation { requests.append($0) }
       })
     var discoveries = 0

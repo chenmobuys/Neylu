@@ -33,3 +33,7 @@ IP masking covers detail text and tooltips, with no separate address exposed thr
 
 更新命令只使用固定系统可执行文件及独立参数，不经过 shell。标准输入关闭，输出写入本次私有目录的 0600 文件并检查大小，命令有单独时限；取消后先停止本次持有的 Process，再清理目录。卸载映像保持独立的超时，且不传入强制卸载参数。
 Update commands use fixed system executables and separate arguments, without a shell. Standard input is closed; output is written to an owner-only file in a private per-command directory and checked for size. Commands have individual deadlines. Cancellation stops the owned Process before directory cleanup. Image detachment retains its own timeout and never uses force-unmount flags.
+
+
+更新选择默认仅正式版，运行测试版不等于同意继续接收测试版。只有用户选择「测试版更新 → Neylu 测试版」后，才包含 Alpha、Beta、RC；切换后使旧通道的进行中操作失效。通道偏好不改变下载地址白名单、校验和或代码签名验证。
+Update selection defaults to stable releases. Running a pre-release does not imply consent to receive more pre-releases. Alpha, Beta and RC releases require an explicit Beta Updates selection; changing it invalidates pending operations for the previous channel. Channel preferences do not weaken download allowlists, digests or code-signature validation.

@@ -45,6 +45,9 @@ brew install --cask chenmobuys/tap/neylu
 
 也可下载 DMG：Apple Silicon 选择 `arm64`，Intel 选择 `x86_64`，打开后将 **Neylu.app** 拖入「应用程序」。使用 App 不需要 Xcode 或 Apple Developer 会员。
 
+
+测试版更新默认关闭，所有安装版本默认只检查正式版。可在「偏好设置 → 测试版更新」选择「Neylu 测试版」，主动接收 Alpha／Beta／RC。
+
 ## 首次打开
 
 当前发行包仅 ad-hoc 签名，**未经 Apple 公证**。若被 macOS 拦截，可按 [Apple 官方步骤](https://support.apple.com/zh-cn/102445)选择「仍要打开」；确认信任下载的 Neylu 后，也可执行：

@@ -215,3 +215,9 @@
 "link.download_page" = "下载页面";
 
 "update.error.preparation_timeout" = "更新准备超时，尚未替换已安装的应用。请重试或下载安装包。";
+
+"menu.update_channel" = "测试版更新";
+"updates.channel.stable" = "关闭";
+"updates.channel.development" = "Neylu 测试版";
+"updates.channel.stable_hint" = "仅检查正式版更新。";
+"updates.channel.development_hint" = "包含 Alpha、Beta 和 RC 版本。";

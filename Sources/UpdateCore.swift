@@ -32,6 +32,18 @@ struct ReleaseVersion: Comparable, Equatable {
     }
 }
 
+// Release labels do not imply consent to receive pre-release updates.
+enum UpdateChannel: String, CaseIterable {
+    case stable, development
+    var titleKey: String { self == .stable ? "updates.channel.stable" : "updates.channel.development" }
+    var hintKey: String { self == .stable ? "updates.channel.stable_hint" : "updates.channel.development_hint" }
+    func allows(_ version: ReleaseVersion) -> Bool { self == .development || version.channel == 3 }
+    static func load(from defaults: UserDefaults = .standard) -> Self {
+        Self(rawValue: defaults.string(forKey: "updateChannel") ?? "") ?? .stable
+    }
+    func save(to defaults: UserDefaults = .standard) { defaults.set(rawValue, forKey: "updateChannel") }
+}
+
 enum UpdateFailure: String, Error, LocalizedError, CaseIterable {
     case metadata = "update.error.metadata"
     case download = "update.error.download"
@@ -73,28 +85,28 @@ struct AvailableUpdate {
     let size: Int64
     let filename: String
 
-    private static func eligibleVersion(_ release: GitHubRelease, current: ReleaseVersion) -> ReleaseVersion? {
+    private static func eligibleVersion(_ release: GitHubRelease, current: ReleaseVersion, channel: UpdateChannel) -> ReleaseVersion? {
         guard !release.draft, release.tag_name.hasPrefix("v"),
               let version = ReleaseVersion(String(release.tag_name.dropFirst())), version > current,
-              release.prerelease == (version.channel < 3), current.channel < 3 || !release.prerelease else { return nil }
+              release.prerelease == (version.channel < 3), channel.allows(version) else { return nil }
         return version
     }
 
     // A missing installer is not evidence that the installed version is current.
     // Check the newest eligible release first, then validate its installer.
-    static func check(in releases: [GitHubRelease], current: ReleaseVersion, architecture: String) throws -> Self? {
+    static func check(in releases: [GitHubRelease], current: ReleaseVersion, architecture: String, channel: UpdateChannel = .stable) throws -> Self? {
         let candidates = releases.compactMap { release -> (GitHubRelease, ReleaseVersion)? in
-            eligibleVersion(release, current: current).map { (release, $0) }
+            eligibleVersion(release, current: current, channel: channel).map { (release, $0) }
         }
         guard let latest = candidates.max(by: { $0.1 < $1.1 }) else { return nil }
-        guard let update = newest(in: [latest.0], current: current, architecture: architecture) else { throw UpdateFailure.incomplete }
+        guard let update = newest(in: [latest.0], current: current, architecture: architecture, channel: channel) else { throw UpdateFailure.incomplete }
         return update
     }
 
-    static func newest(in releases: [GitHubRelease], current: ReleaseVersion, architecture: String) -> Self? {
+    static func newest(in releases: [GitHubRelease], current: ReleaseVersion, architecture: String, channel: UpdateChannel = .stable) -> Self? {
         guard ["arm64", "x86_64"].contains(architecture) else { return nil }
         return releases.compactMap { release -> Self? in
-            guard let version = eligibleVersion(release, current: current) else { return nil }
+            guard let version = eligibleVersion(release, current: current, channel: channel) else { return nil }
             let page = "\(repository)/releases/tag/\(release.tag_name)"
             guard release.html_url == page else { return nil }
             let filename = "Neylu-\(version.text)-\(architecture).dmg"

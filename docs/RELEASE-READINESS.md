@@ -6,6 +6,9 @@ The published release remains an RC. These fixes are recorded under Unreleased; 
 
 ## 本轮收尾 / Stabilization
 
+- 默认只检查正式版；用户在「测试版更新」主动选择后才接收预发布。手动、后台、缓存与进行中的操作遵循同一偏好。Homebrew 的默认 Cask 首次进入正式版后不会被预发布覆盖。
+  Check only stable releases by default. Pre-releases require an explicit Beta Updates selection, shared across manual checks, background checks, caches and pending operations. After its first stable release, the default Homebrew cask is not replaced by previews.
+
 - 修正手动和后台更新检查的结果乱序，旧后台结果不能覆盖已完成的手动检查。
   Fix manual/background update ordering so stale background results cannot replace a completed manual result.
 - 更新准备命令限时执行、检查输出大小，取消后回收本次子进程；卸载保持独立限时且不强制执行。
@@ -17,9 +20,9 @@ The published release remains an RC. These fixes are recorded under Unreleased; 
 
 | 项目 / Item | 证据与边界 / Evidence and limits |
 | --- | --- |
-| 本机 / Local | 49 项 Swift Testing 套件通过，开启私有测试 App 的替换、重启和失败回滚；专用双屏测试本轮未重跑，RC 验收已记录 / The 49-test suite passes with private-app replacement, restart and rollback enabled; the opt-in display test was not rerun this round and remains covered by RC acceptance |
+| 本机 / Local | 完整 52 项 Swift Testing 套件通过，开启私有测试 App 的替换、重启和失败回滚；专用双屏测试本轮未重跑，RC 验收已记录 / The full 52-test Swift suite passes with private-app replacement, restart and rollback enabled; the opt-in display test was not rerun this round and remains covered by RC acceptance |
 | 云端 / Hosted CI | main 的 ARM / Intel 原生构建、测试与 DMG 打包均须通过；查看仓库 CI / Native ARM and Intel builds, tests and DMG packaging on main must pass; see repository CI |
-| 安装包 / Installer | 本机 ARM 试打包 430,088 字节（约 420 KiB），通过签名、映像和卷图标检查；公开 RC 1 的云端 ARM DMG 为 436,916 字节（约 427 KiB），环境不同，不能据此宣称优化了体积 / Local ARM test package: 430,088 bytes (about 420 KiB), with signature, image and volume-icon validation. Public RC 1 ARM DMG: 436,916 bytes (about 427 KiB). Different build environments prevent a size-reduction claim |
+| 安装包 / Installer | 本机 ARM 试打包 432,065 字节（约 422 KiB），通过签名、映像和卷图标检查；公开 RC 1 的云端 ARM DMG 为 436,916 字节（约 427 KiB），环境不同，不能据此宣称优化了体积 / Local ARM test package: 432,065 bytes (about 422 KiB), with signature, image and volume-icon validation. Public RC 1 ARM DMG: 436,916 bytes (about 427 KiB). Different build environments prevent a size-reduction claim |
 | 运行开销 / Runtime overhead | 日常采样与定时调度未改动；命令监控仅在更新准备时启用。本轮没有新的功率、续航或能耗测量结论 / Normal sampling and timer scheduling are unchanged; command monitoring runs only during update preparation. No new power, battery-life or energy-measurement claim is made |
 
 ## 仍需明确披露 / Disclosures

@@ -18,6 +18,7 @@ enum Diagnostics {
         #endif
         let interval = settings.energyMode.interval(requested: settings.refreshInterval.seconds, detailsVisible: detailsVisible, lowPower: lowPower)
         let fields: [(String, String)] = [
+            ("menu.update_channel", text(settings.updateChannel.titleKey)),
             ("diagnostics.version", bundle.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String ?? "—"),
             ("diagnostics.build", bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"),
             ("diagnostics.system", "macOS \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)"),

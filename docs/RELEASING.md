@@ -98,7 +98,7 @@ brew install --cask chenmobuys/tap/neylu
 
 1. 读取已公开 Release，下载 ARM / Intel 两份 DMG，验证完整版本、附件大小、实际 SHA-256 与 GitHub 摘要及下载地址归属。
 2. 用专用部署密钥检出独立 tap；密钥只对该仓库有效。
-3. `scripts/update-tap.py` 比较已有版本：拒绝降级，拒绝同版本校验和变化；重复同步不产生空提交。最低系统要求从发布 tag 的 `build.sh` 读取，不能用当前源码的要求覆盖历史安装包。
+3. `scripts/update-tap.py` 比较已有版本：拒绝降级，拒绝同版本校验和变化；默认 Cask 首次进入正式版后，后续预发布不会覆盖它，更新订阅仍保留预发布供主动选择。重复同步不产生空提交。最低系统要求从发布 tag 的 `build.sh` 读取，不能用当前源码的要求覆盖历史安装包。
 4. 仅提交 `Casks/neylu.rb` 并直接推送 main；tap 的 CI 自动检查 Ruby 与 Homebrew 风格。无需手动 PR。
 
 ### 一次性凭据配置

@@ -304,6 +304,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 else { self.backgroundUpdates.stop() }
             }
         }
+        model.settings.onUpdateChannelChange = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.backgroundUpdates.channelChanged()
+                self.updates.channelChanged()
+            }
+        }
         model.diskActions.onFinish = { [weak self] in self?.volumesChanged() }
         model.layout.onSizeChange = { [weak self] in
             DispatchQueue.main.async { self?.resizeVisibleDetails() }
@@ -462,7 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { backgroundUpdates.start() }
         sampling.resumeAfterWake()
     }
-    @MainActor private lazy var updates = UpdateController()
+    @MainActor private lazy var updates = UpdateController(channel: { [weak self] in self?.model.settings.updateChannel ?? .stable })
     @MainActor private lazy var backgroundUpdates = BackgroundUpdateChecker(settings: model.settings)
     @MainActor @objc func checkForUpdates(_ sender: Any?) {
         hideDetails()

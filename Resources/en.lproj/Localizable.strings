@@ -215,3 +215,9 @@
 "link.download_page" = "Download Page";
 
 "update.error.preparation_timeout" = "Preparing the update took too long. Your installed app has not been replaced. Try again or download the installer.";
+
+"menu.update_channel" = "Beta Updates";
+"updates.channel.stable" = "Off";
+"updates.channel.development" = "Neylu Pre-release";
+"updates.channel.stable_hint" = "Only check for stable releases.";
+"updates.channel.development_hint" = "Includes Alpha, Beta, and RC releases.";

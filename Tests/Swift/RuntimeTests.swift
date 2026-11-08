@@ -355,6 +355,9 @@ extension NeyluTests {
       "PASS: inspection uses actual nearest samples, missing GPU counters stay unavailable, units and daily scheduling handle boundary cases"
     )
     do {
+      let updateArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+      defer { UserDefaults.standard.setVolatileDomain(updateArguments, forName: UserDefaults.argumentDomain) }
+      UserDefaults.standard.setVolatileDomain(updateArguments.merging(["updateChannel": "development"]) { _, new in new }, forName: UserDefaults.argumentDomain)
       let suite = "Neylu-background-updates-test-" + UUID().uuidString
       let defaults = UserDefaults(suiteName: suite)!
       defer { defaults.removePersistentDomain(forName: suite) }
@@ -367,7 +370,7 @@ extension NeyluTests {
         package: URL(string: AvailableUpdate.repository)!, digest: "", size: 0, filename: "")
       let checker = BackgroundUpdateChecker(
         settings: settings, defaults: defaults, version: "0.1.0-alpha.3",
-        check: { _ in
+        check: { _, _ in
           checks += 1
           return candidate
         })
@@ -384,7 +387,7 @@ extension NeyluTests {
       freshSettings.automaticUpdateChecks = true
       let restored = BackgroundUpdateChecker(
         settings: freshSettings, defaults: defaults, version: "0.1.0-alpha.3",
-        check: { _ in
+        check: { _, _ in
           checks += 1
           return nil
         })
@@ -402,7 +405,7 @@ extension NeyluTests {
       var completeCancelled: CheckedContinuation<AvailableUpdate?, Error>?
       let cancelled = BackgroundUpdateChecker(
         settings: settings, defaults: defaults, version: "0.1.0-alpha.3",
-        check: { _ in
+        check: { _, _ in
           try await withCheckedThrowingContinuation { completeCancelled = $0 }
         })
       settings.availableUpdateVersion = nil
@@ -420,7 +423,7 @@ extension NeyluTests {
       defaults.removeObject(forKey: BackgroundUpdateChecker.attemptKey)
       let failed = BackgroundUpdateChecker(
         settings: settings, defaults: defaults, version: "0.1.0-alpha.3",
-        check: { _ in
+        check: { _, _ in
           checks += 1
           throw URLError(.notConnectedToInternet)
         })
@@ -880,8 +883,8 @@ extension NeyluTests {
       ])
     #expect(
       settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }
-        .map(\.tag) == [4, 20, 17, 2, 19, 5, 1, 15])
-    #expect(settingsCoordinator.item(21, in: badgeMenu) == nil)
+        .map(\.tag) == [4, 20, 17, 2, 19, 5, 1, 15, 21])
+    #expect(settingsCoordinator.item(21, in: badgeMenu)?.submenu?.items.count == 2)
     let unitsMenu = settingsCoordinator.item(2, in: badgeMenu)!.submenu!
     #expect(unitsMenu.items.count == 2)
     let savedBasis = visibilityModel.settings.basis

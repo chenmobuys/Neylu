@@ -10,7 +10,7 @@ Login items use the legacy system API on macOS 12 and SMAppService on macOS 13 a
 - For Homebrew installations, run `brew update && brew upgrade --cask --greedy neylu`; `--greedy` includes apps with built-in updaters.
 - Or download the DMG for your Mac from [GitHub Releases](https://github.com/chenmobuys/Neylu/releases), quit Neylu, and replace the app manually.
 
-Automatic checks run once a day by default. An update adds a dot to the settings button and shows the available version in its menu; no window opens and no installer downloads automatically. Disable **Automatically Check for Updates** under **Preferences** to opt out. Stable builds receive stable releases only; Alpha, Beta, and RC builds also receive subsequent previews.
+Automatic checks run once a day by default. An update adds a dot to the settings button and shows the available version in its menu; no window opens and no installer downloads automatically. Disable **Automatically Check for Updates** under **Preferences** to opt out. All installations check for stable releases by default, including installations running Alpha, Beta, or RC builds. To include pre-releases, explicitly select **Neylu Pre-release** under **Preferences → Beta Updates**; the default is **Off**. The choice persists across restarts and applies to both manual and background checks. Turning it off clears ineligible pre-release notices and cancels pending operations for the previous channel; it does not downgrade the installed app.
 
 ## First-launch or updater warnings
 
@@ -79,3 +79,5 @@ The [download page](https://github.com/chenmobuys/Neylu/blob/updates/downloads.m
 ## Preparation timeouts and cancellation
 
 A completed manual check takes precedence over older background requests. Preparation commands have a default 120-second timeout; copying the app allows up to 300 seconds. Commands stop when output exceeds 1 MiB. Cancellation stops and reaps the owned subprocess before its private files are removed. Each image-detach command has a 30-second timeout, with bounded retries only when busy and no forced unmount. If detachment fails, the mounted workspace is preserved to avoid recursive deletion of image contents.
+
+The in-app Beta Updates choice does not configure Homebrew. Once the default cask reaches its first stable release, later previews will not replace it; previews remain available before the first stable release. Opt in through the app or install the corresponding DMG to try pre-releases.

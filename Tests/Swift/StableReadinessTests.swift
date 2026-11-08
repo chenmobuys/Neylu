@@ -14,14 +14,14 @@ extension NeyluTests {
     UserDefaults.standard.setVolatileDomain(arguments.merging(["automaticUpdateChecks": true]) { _, new in new }, forName: UserDefaults.argumentDomain)
     let settings = MonitorSettings()
     var pending: CheckedContinuation<AvailableUpdate?, Error>?
-    let checker = BackgroundUpdateChecker(settings: settings, defaults: defaults, version: "0.1.0-alpha.9", check: { _ in
+    let checker = BackgroundUpdateChecker(settings: settings, defaults: defaults, version: "0.1.0-alpha.9", check: { _, _ in
       try await withCheckedThrowingContinuation { pending = $0 }
     })
     defer { checker.stop(); pending?.resume(throwing: CancellationError()) }
     checker.checkIfDue()
     for _ in 0..<100 where pending == nil { try await Task.sleep(nanoseconds: 10_000_000) }
     try #require(pending != nil)
-    let update = AvailableUpdate(version: ReleaseVersion("0.1.0-rc.1")!, notes: "", page: URL(string: AvailableUpdate.repository)!, package: URL(string: AvailableUpdate.repository)!, digest: "", size: 1, filename: "")
+    let update = AvailableUpdate(version: ReleaseVersion("0.1.0")!, notes: "", page: URL(string: AvailableUpdate.repository)!, package: URL(string: AvailableUpdate.repository)!, digest: "", size: 1, filename: "")
     checker.accept(update)
     let old = pending
     pending = nil
