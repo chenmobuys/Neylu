@@ -6,6 +6,12 @@ import Carbon.HIToolbox
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
+    let runtimeStarted = ProcessInfo.processInfo.systemUptime
+    func report(_ message: String) {
+        print(String(format: "[runtime +%.2fs] %@", ProcessInfo.processInfo.systemUptime - runtimeStarted, message))
+        fflush(stdout)
+    }
+    report("START: native runtime regression tests")
     _ = NSApplication.shared
     precondition(!MenuBarConfiguration.defaults.visibleMetrics.contains(.temperature))
     precondition(!SamplingDemand(details: false, systemDisk: false).needsTemperature)
@@ -39,7 +45,7 @@ if CommandLine.arguments.contains("--self-test") {
         }
     }
     precondition(ShortcutChord(key: 45, modifiers: UInt32(cmdKey | shiftKey), label: "⌘⇧N").isValid)
-    print("PASS: memory percentages retain stable widths; temperature and tooltip edges stay within stable allocations")
+    report("PASS: memory percentages retain stable widths; temperature and tooltip edges stay within stable allocations")
     let supportedModel = MonitorModel(persistHistory: false)
     let savedForCapabilities = supportedModel.settings.menuBarConfiguration
     var requested = MenuBarConfiguration.defaults
@@ -85,7 +91,7 @@ if CommandLine.arguments.contains("--self-test") {
                                   rendererAvailable: false, tilerAvailable: false)!
     precondition(gpuOnly.value == "30%")
     supportedModel.settings.menuBarConfiguration = savedForCapabilities
-    print("PASS: unsupported metrics are absent from status configuration and table/drag rows; preferences survive, hidden-row reordering is safe and missing ticks preserve support")
+    report("PASS: unsupported metrics are absent from status configuration and table/drag rows; preferences survive, hidden-row reordering is safe and missing ticks preserve support")
     let polishSuite = "Neylu-polish-" + UUID().uuidString
     let polishDefaults = UserDefaults(suiteName: polishSuite)!
     let testChord = ShortcutChord(key: 0, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥A")
@@ -126,6 +132,7 @@ if CommandLine.arguments.contains("--self-test") {
     let pinnedMemory = pinModel.chartMemory
     let pinnedNetwork = pinModel.chartNetwork
     // Twenty-four hours of simulated two-second samples; no wall-clock claims.
+    report("START: 24-hour simulated recording (43,200 samples)")
     for index in 1...43_200 {
         pinModel.recordCPU(pinReading, at: pinNow.addingTimeInterval(-86_400 + Double(index) * 2))
     }
@@ -148,7 +155,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(pinModel.settings.hideNetworkAddress)
     pinModel.settings.menuBarConfiguration = oldConfiguration
     pinModel.settings.hideNetworkAddress = savedPrivacy
-    print("PASS: memory display boundaries, isolated shortcut registration/conflict rollback, layout-only reset and 24-hour simulated recording with frozen charts")
+    report("PASS: memory display boundaries, isolated shortcut registration/conflict rollback, layout-only reset and 24-hour simulated recording with frozen charts")
     let energySuite = "Neylu-efficiency-" + UUID().uuidString
     let energyDefaults = UserDefaults(suiteName: energySuite)!
     precondition(EnergyMode.load(from: energyDefaults) == .off)
@@ -181,7 +188,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(cachedMeter.displayKey == oldKey)
     cachedMeter.reading = Reading(cpu: 21, cpuReady: true)
     precondition(cachedMeter.displayKey != oldKey)
-    print("PASS: all energy policies preserve foreground refresh, address cache expires/invalidates and unchanged displayed values have stable render keys")
+    report("PASS: all energy policies preserve foreground refresh, address cache expires/invalidates and unchanged displayed values have stable render keys")
     do {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Neylu-range-runtime-" + UUID().uuidString)
         let url = folder.appendingPathComponent("history.sqlite")
@@ -222,7 +229,7 @@ if CommandLine.arguments.contains("--self-test") {
         model.layout.isVisible = true
         model.updateChartWindow(at: Date().addingTimeInterval(1))
         precondition(model.chartCPU.last!.user == 25)
-        print("PASS: asynchronous range loading merges live samples, stale requests cannot overwrite a newer range and hidden plots skip preparation")
+        report("PASS: asynchronous range loading merges live samples, stale requests cannot overwrite a newer range and hidden plots skip preparation")
     } catch { fatalError("History range integration failed: \(error)") }
     let backgroundSampler = Sampler()
     backgroundSampler.setDemand(SamplingDemand(details: false, systemDisk: false))
@@ -231,7 +238,7 @@ if CommandLine.arguments.contains("--self-test") {
     backgroundSampler.setDemand(.full)
     let firstForeground = backgroundSampler.sample()
     precondition(!firstForeground.diskActivityReady)
-    print("PASS: background demand omits detail-only hardware while foreground disk rates establish a fresh baseline")
+    report("PASS: background demand omits detail-only hardware while foreground disk rates establish a fresh baseline")
     let inspectStart = Date(timeIntervalSince1970: 1000)
     let inspectPoints = [CPUPoint(timestamp: inspectStart, user: 8, system: 5), CPUPoint(timestamp: inspectStart.addingTimeInterval(2), user: 20, system: 10)]
     precondition(ChartReadout.nearest(inspectPoints, at: inspectStart.addingTimeInterval(1.8), timestamp: \.timestamp) == inspectPoints[1])
@@ -247,7 +254,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart.addingTimeInterval(1), now: inspectStart) == 0)
     precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart, now: inspectStart.addingTimeInterval(100)) == 86300)
     precondition(UpdateCheckSchedule.remaining(lastAttempt: inspectStart, now: inspectStart.addingTimeInterval(86400)) == 0)
-    print("PASS: inspection uses actual nearest samples, missing GPU counters stay unavailable, units and daily scheduling handle boundary cases")
+    report("PASS: inspection uses actual nearest samples, missing GPU counters stay unavailable, units and daily scheduling handle boundary cases")
     MainActor.assumeIsolated {
         let suite = "Neylu-background-updates-test-" + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
@@ -296,7 +303,7 @@ if CommandLine.arguments.contains("--self-test") {
         failed.checkIfDue(now: inspectStart.addingTimeInterval(172801))
         precondition(checks == 3)
         failed.stop()
-        print("PASS: background updates cache valid versions, coalesce daily checks, clear stale badges, respect opt-out and back off offline failures")
+        report("PASS: background updates cache valid versions, coalesce daily checks, clear stale badges, respect opt-out and back off offline failures")
     }
     let recoveryModel = MonitorModel(persistHistory: false)
     recoveryModel.historySaveFailed("disk full")
@@ -307,7 +314,7 @@ if CommandLine.arguments.contains("--self-test") {
     recoveryModel.error = "unrelated settings error"
     recoveryModel.historySaveRecovered()
     precondition(recoveryModel.error == "unrelated settings error")
-    print("PASS: history recovery clears only its own stale error without hiding unrelated failures")
+    report("PASS: history recovery clears only its own stale error without hiding unrelated failures")
     let timelineModel = MonitorModel(persistHistory: false)
     let timelineStart = Date()
     let sample = Reading(gpuReady: true, usedMemory: 20, totalMemory: 48,
@@ -326,7 +333,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(timelineModel.chartWindow.end.timeIntervalSince(timelineModel.chartWindow.start) == 1)
     timelineModel.recordCPU(sample, at: timelineStart.addingTimeInterval(302))
     precondition(timelineModel.chartWindow.fraction(timelineStart.addingTimeInterval(300)) == 0)
-    print("PASS: all four charts share startup, fixed-window and post-pause ranges without adding samples")
+    report("PASS: all four charts share startup, fixed-window and post-pause ranges without adding samples")
     let resizeGate = StatusItemResizeGate(interval: 0.005)
     var resizeRequests = 0, staleReveal = 0, latestReveal = 0, geometryReads = 0
     var displayedImage = "old"
@@ -350,7 +357,7 @@ if CommandLine.arguments.contains("--self-test") {
     resizeGate.cancel()
     RunLoop.current.run(until: Date().addingTimeInterval(0.03))
     precondition(!resizeGate.isActive && resizeRequests == 3 && staleReveal == 0)
-    print("PASS: menu bar expansion retains its old image through renewed movement, cancels stale transitions and switches only after geometry settles")
+    report("PASS: menu bar expansion retains its old image through renewed movement, cancels stale transitions and switches only after geometry settles")
     var allocationPolls = 0
     var allocationRevealed = false
     resizeGate.begin(resize: {}, geometry: { [] }, refresh: { allocationPolls += 1 },
@@ -361,7 +368,7 @@ if CommandLine.arguments.contains("--self-test") {
     let allocationDeadline = Date().addingTimeInterval(3)
     while !allocationRevealed && Date() < allocationDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
     precondition(allocationRevealed)
-    print("PASS: quiet geometry cannot reveal the pending layout until its target allocation is ready")
+    report("PASS: quiet geometry cannot reveal the pending layout until its target allocation is ready")
     final class SlowTestSampler: MetricSampling {
         let entered = DispatchSemaphore(value: 0)
         let release = DispatchSemaphore(value: 0)
@@ -421,7 +428,7 @@ if CommandLine.arguments.contains("--self-test") {
     pumpMain { diskDeliveries == 1 }
     precondition(slowSampler.diskRefreshes == 2)
     service.suspend()
-    print("PASS: blocked sampling leaves main responsive, requests coalesce, callbacks use main, stale sleep results are discarded and disk events survive wake")
+    report("PASS: blocked sampling leaves main responsive, requests coalesce, callbacks use main, stale sleep results are discarded and disk events survive wake")
     for generation in 1...5 {
         let profile = CPUTemperatureProfile.forModel("Apple M\(generation) Max")!
         precondition(!profile.keys.isEmpty && profile.averagesSensors)
@@ -436,20 +443,20 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(CPUTemperatureReader.decode([0xff, 0], type: 0x73703738) == nil)
     precondition(CPUTemperatureReader.decode([0], type: 0x73703738) == nil)
     precondition(CPUTemperatureReader(model: "Unknown").read(now: 0) == nil)
-    print("PASS: generation-specific Intel/M1–M5 temperature mappings, unsupported models and invalid sensor payloads")
+    report("PASS: generation-specific Intel/M1–M5 temperature mappings, unsupported models and invalid sensor payloads")
     var partialGPUReading = Reading()
     applyGPUStatistics(["Device Utilization %": 45, "Tiler Utilization %": 0], to: &partialGPUReading)
     precondition(partialGPUReading.gpuReady && partialGPUReading.gpuRenderer == nil && partialGPUReading.gpuTiler == 0)
     applyGPUStatistics(["Device Utilization %": Double.nan, "Renderer Utilization %": true], to: &partialGPUReading)
     precondition(!partialGPUReading.gpuReady && partialGPUReading.gpuRenderer == nil && partialGPUReading.gpuTiler == nil)
-    print("PASS: missing/invalid GPU counters are distinct from actual zero utilization")
+    report("PASS: missing/invalid GPU counters are distinct from actual zero utilization")
     precondition(preferredNetworkAddress([]) == "—")
     precondition(preferredNetworkAddress([""]) == "—")
     precondition(preferredNetworkAddress(["2001:db8::12", "192.0.2.1"]) == "192.0.2.1")
     precondition(preferredNetworkAddress(["fe80::1%en0", "2001:db8::12"]) == "2001:db8::12")
     precondition(preferredNetworkAddress(["fe80::1%en0", "febf::1", "invalid"]) == "—")
     precondition(preferredNetworkAddress(["fd12:3456::1"]) == "fd12:3456::1")
-    print("PASS: IPv4 preference, IPv6 fallback and link-local address filtering")
+    report("PASS: IPv4 preference, IPv6 fallback and link-local address filtering")
     let appearanceSuite = "NeyluAppearanceTest-" + UUID().uuidString
     let appearanceDefaults = UserDefaults(suiteName: appearanceSuite)!
     precondition(AppearanceMode.load(from: appearanceDefaults) == .automatic)
@@ -481,7 +488,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(L10n.uptime(minutes: 1501, language: .english) == "Uptime: 1d 1h 1m")
     precondition(L10n.uptime(minutes: 61, language: .simplifiedChinese) == "开机时间：1 小时 1 分钟")
     precondition(L10n.uptime(minutes: nil, language: .english) == "Uptime: —")
-    print("PASS: language defaults/order, system resolution, preference persistence, translations and uptime formatting")
+    report("PASS: language defaults/order, system resolution, preference persistence, translations and uptime formatting")
     precondition(MenuBarConfiguration.load(from: appearanceDefaults) == .defaults)
     precondition(MenuBarConfiguration.defaults.visibleMetrics == [.network, .memory, .gpu, .cpu])
     var menuLayout = MenuBarConfiguration.defaults
@@ -526,6 +533,7 @@ if CommandLine.arguments.contains("--self-test") {
             }
         }
     }
+    report("START: exhaustive metric permutation rendering")
     for order in permutations(MenuBarMetric.allCases) {
         testMeter.configuration = MenuBarConfiguration(items: order.map { MenuBarItem(metric: $0, enabled: true) })
         for basis in UnitBasis.allCases {
@@ -536,6 +544,7 @@ if CommandLine.arguments.contains("--self-test") {
             precondition(image.isTemplate)
         }
     }
+    report("PASS: exhaustive metric permutation rendering")
     testMeter.reading = Reading(cpu: 73, memory: 61, cpuReady: true, memoryReady: true)
     testMeter.configuration = MenuBarConfiguration(items: [.memory, .cpu].map { MenuBarItem(metric: $0, enabled: true) })
     _ = NSApplication.shared
@@ -568,7 +577,7 @@ if CommandLine.arguments.contains("--self-test") {
     recorderWindow.makeFirstResponder(nil)
     precondition(!recorder.performKeyEquivalent(with: recordEvent))
     recorderWindow.close()
-    print("PASS: native shortcut recorder captures local keys only while it is the focused responder")
+    report("PASS: native shortcut recorder captures local keys only while it is the focused responder")
     let shortcutAlert = shortcut.makeConfigurationAlert()
     shortcutAlert.layout()
     let alertRecorder = shortcutAlert.accessoryView as! ShortcutRecorder
@@ -584,7 +593,7 @@ if CommandLine.arguments.contains("--self-test") {
     alertRecorder.beginRecording()
     precondition(!shortcutAlert.buttons[0].isEnabled && alertRecorder.recorded == nil)
     precondition(alertRecorder.performKeyEquivalent(with: alertEvent) && shortcutAlert.buttons[0].isEnabled)
-    print("PASS: native shortcut dialog requires explicit recording, enables Save after capture and supports accessibility activation")
+    report("PASS: native shortcut dialog requires explicit recording, enables Save after capture and supports accessibility activation")
     let escapeWindow = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
     escapeWindow.isReleasedWhenClosed = false
     escapeWindow.orderFront(nil)
@@ -606,7 +615,7 @@ if CommandLine.arguments.contains("--self-test") {
     focusWindow.makeKeyAndOrderFront(nil)
     precondition(focusWindow.firstResponder === focusControl)
     focusWindow.close()
-    print("PASS: utility windows avoid automatic link/control focus on opening, preserve Tab navigation and retain focus when brought forward")
+    report("PASS: utility windows avoid automatic link/control focus on opening, preserve Tab navigation and retain focus when brought forward")
     let privateReading = Reading(cpuTemperature: 52, gpuRenderer: nil, gpuTiler: 0, gpuReady: true,
         diskName: "PRIVATE-VOLUME", interface: "PRIVATE-INTERFACE", address: "198.51.100.42", cpuReady: true)
     let englishDomain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
@@ -621,7 +630,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(clipboard.string(forType: .string) == diagnostics)
     clipboard.releaseGlobally()
     UserDefaults.standard.setVolatileDomain(englishDomain, forName: UserDefaults.argumentDomain)
-    print("PASS: diagnostics allowlist excludes addresses, names, paths and monitoring values and copies to an isolated pasteboard")
+    report("PASS: diagnostics allowlist excludes addresses, names, paths and monitoring values and copies to an isolated pasteboard")
     let settingsCoordinator = SettingsMenuButton.Coordinator(settings: visibilityModel.settings)
     visibilityModel.settings.availableUpdateVersion = "0.1.0-alpha.10"
     let badgeMenu = settingsCoordinator.makeMenu(pullsDown: false)
@@ -694,8 +703,8 @@ if CommandLine.arguments.contains("--self-test") {
     hover.mouseExited(with: move)
     precondition(tracked == nil)
     hoverWindow.close()
-    print("PASS: grouped native menus retain identity, pending login approval/failures reflect actual service state and macOS 12 AppKit chart tracking works")
-    print("PASS: details unmount/reopen at fixed width, utility windows dismiss on Escape and native update menus expose badge/version and opt-out state")
+    report("PASS: grouped native menus retain identity, pending login approval/failures reflect actual service state and macOS 12 AppKit chart tracking works")
+    report("PASS: details unmount/reopen at fixed width, utility windows dismiss on Escape and native update menus expose badge/version and opt-out state")
     let aboutController = AboutController(settings: MonitorSettings(), bundle: appBundle)
     func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }
     for language in [AppLanguage.english, .simplifiedChinese] {
@@ -739,9 +748,9 @@ if CommandLine.arguments.contains("--self-test") {
             precondition(textView.layoutManager!.usedRect(for: textView.textContainer!).height > 0)
         }
     }
-    print("PASS: installed-version release notes load offline, render localized Markdown and retain native scrolling and window identity across appearance/language changes")
+    report("PASS: installed-version release notes load offline, render localized Markdown and retain native scrolling and window identity across appearance/language changes")
     UserDefaults.standard.setVolatileDomain(originalArgumentDomain, forName: UserDefaults.argumentDomain)
-    print("PASS: the same native About window switches all owned labels between English and Simplified Chinese")
+    report("PASS: the same native About window switches all owned labels between English and Simplified Chinese")
 
     for basis in UnitBasis.allCases {
         testMeter.basis = basis
@@ -777,7 +786,7 @@ if CommandLine.arguments.contains("--self-test") {
             }
         }
     }
-    print("PASS: actual native status cell stays at x=0 through expansion/contraction; 1x/2x content pixels remain fixed at the left with a transparent tail")
+    report("PASS: actual native status cell stays at x=0 through expansion/contraction; 1x/2x content pixels remain fixed at the left with a transparent tail")
     let alignmentSource = NSImage(size: NSSize(width: 64, height: 22), flipped: false) { rect in
         NSColor.blue.setFill(); rect.fill(); return true
     }
@@ -814,7 +823,7 @@ if CommandLine.arguments.contains("--self-test") {
         precondition(left == 0 && right == Int(min(width, 64) * scale) - 1)
     }
     NotificationCenter.default.removeObserver(alignmentObserver)
-    print("PASS: real NSStatusBarButton output pixels remain at the left after automatic frame-change updates for both growth and shrinkage")
+    report("PASS: real NSStatusBarButton output pixels remain at the left after automatic frame-change updates for both growth and shrinkage")
     testMeter.configuration = normalized
     precondition(!testMeter.accessibilitySummary.contains("GPU") && testMeter.accessibilitySummary.contains("CPU"))
     let beforeReadingChange = testMeter.makeStatusImage().size.width
@@ -822,7 +831,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(testMeter.makeStatusImage().size.width == beforeReadingChange)
     testMeter.configuration = hiddenLayout
     precondition(testMeter.makeStatusImage().size.width == 16 && testMeter.accessibilitySummary == "Neylu")
-    print("PASS: menu bar visibility/order persistence, corrupt preferences, all-hidden entry, all metric permutations and stable image widths")
+    report("PASS: menu bar visibility/order persistence, corrupt preferences, all-hidden entry, all metric permutations and stable image widths")
     precondition(RefreshInterval.load(from: appearanceDefaults) == .twoSeconds)
     precondition(RefreshInterval.allCases.map(\.rawValue) == [1, 2, 5, 10])
     for interval in RefreshInterval.allCases {
@@ -832,8 +841,8 @@ if CommandLine.arguments.contains("--self-test") {
     appearanceDefaults.set(3, forKey: "refreshInterval")
     precondition(RefreshInterval.load(from: appearanceDefaults) == .twoSeconds)
     appearanceDefaults.removePersistentDomain(forName: appearanceSuite)
-    print("PASS: refresh interval defaults/order, preference round trip and invalid interval fallback")
-    print("PASS: appearance defaults/order, preference round trip, invalid preference fallback and system appearance mapping")
+    report("PASS: refresh interval defaults/order, preference round trip and invalid interval fallback")
+    report("PASS: appearance defaults/order, preference round trip, invalid preference fallback and system appearance mapping")
     let cases: [(Double, UnitBasis, String)] = [
         (0, .decimal, "0 KB/s"), (529_000, .decimal, "529 KB/s"),
         (999_500, .decimal, "1.0 MB/s"), (1_200_000, .decimal, "1.2 MB/s"),
@@ -879,7 +888,7 @@ if CommandLine.arguments.contains("--self-test") {
     mountedFixtures.removeAll()
     testDisks.invalidate()
     precondition(testDisks.sample(now: 14).isEmpty)
-    print("PASS: disk discovery cache, connection/removal invalidation and fresh reconnect baselines")
+    report("PASS: disk discovery cache, connection/removal invalidation and fresh reconnect baselines")
     let ejectFixture = ExternalDiskReading(id: "test-eject", name: "Test Volume", total: 100, free: 50, volumeURL: URL(fileURLWithPath: "/Volumes/Neylu-Test-Only"))
     func waitForEjection(_ actions: DiskActions) {
         let deadline = Date().addingTimeInterval(5)
@@ -901,8 +910,8 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(busyEject.failure?.name == "Test Volume")
     successfulEject.eject(ExternalDiskReading(id: "demo", name: "Demo", total: 100, free: 50))
     precondition(successfulEject.ejectingID == nil && ejectCalls == 1)
-    print("PASS: ejection duplicate-click guard, main-thread completion, OS error presentation data and inert demo volumes")
-    print("PASS: external hardware filtering and disk I/O counter baselines, resets and zero-time intervals")
+    report("PASS: ejection duplicate-click guard, main-thread completion, OS error presentation data and inert demo volumes")
+    report("PASS: external hardware filtering and disk I/O counter baselines, resets and zero-time intervals")
     let sampler = Sampler()
     _ = sampler.sample()
     Thread.sleep(forTimeInterval: 1)
@@ -921,19 +930,19 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(mountEventReading.cpu == 42 && mountEventReading.memory == 63)
     precondition(mountEventReading.download == 123 && mountEventReading.upload == 456)
     precondition(mountEventReading.cpuReady && mountEventReading.networkReady && mountEventReading.memoryReady)
-    print("PASS: mount/eject refresh preserves CPU, memory and network readings")
+    report("PASS: mount/eject refresh preserves CPU, memory and network readings")
     sampler.resetAfterWake()
     let wakeReading = sampler.sample()
     precondition(!wakeReading.cpuReady && !wakeReading.networkReady && !wakeReading.diskActivityReady)
     precondition(wakeReading.externalDisks.allSatisfy { !$0.activityReady })
     precondition(wakeReading.memoryReady)
-    print("PASS: wake starts fresh CPU/network/disk baselines without stale rate spikes")
+    report("PASS: wake starts fresh CPU/network/disk baselines without stale rate spikes")
     precondition(r.download >= 0 && r.upload >= 0)
     precondition(automaticNetworkInterface(primary: "utun2", previous: "en0", available: ["en0", "utun2"]) == "utun2")
     precondition(automaticNetworkInterface(primary: "en4", previous: "en0", available: ["en0", "en4"]) == "en4")
     precondition(automaticNetworkInterface(primary: nil, previous: "en4", available: ["en0", "en4"]) == "en4")
     precondition(automaticNetworkInterface(primary: nil, previous: "utun2", available: ["utun2", "en10", "en2"]) == "en2")
     precondition(automaticNetworkInterface(primary: "en0", previous: "en0", available: []) == nil)
-    print("PASS: decimal/binary formatting, automatic primary/VPN routing, stable physical fallback, offline routes and live kernel sampling")
+    report("PASS: decimal/binary formatting, automatic primary/VPN routing, stable physical fallback, offline routes and live kernel sampling")
     exit(0)
 }
