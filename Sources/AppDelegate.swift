@@ -170,9 +170,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         terminationSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         terminationSource?.setEventHandler { NSApp.terminate(nil) }
         terminationSource?.resume()
-        if CommandLine.arguments.contains("--screenshot-mode") {
-            NSApp.appearance = NSAppearance(named: CommandLine.arguments.contains("--screenshot-dark") ? .darkAqua : .aqua)
-        }
         NSApp.setActivationPolicy(.accessory)
         // Read the bundled icon directly instead of Launch Services' older cache.
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
@@ -223,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hosting.view.wantsLayer = true
         hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
         let surface: NSView
-        if #available(macOS 26.0, *), !CommandLine.arguments.contains("--legacy-material") {
+        if #available(macOS 26.0, *) {
             let glass = AdaptiveGlassView()
             // System glass follows the chosen appearance; only the dark tint
             // uses the native window color to keep text legible over bright content.
@@ -328,31 +325,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         restartSamplingTimer()
         update()
-        if !CommandLine.arguments.contains("--screenshot-mode") {
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.updates.onDiscovery = { [weak owner = self] update in owner?.backgroundUpdates.accept(update) }
-                self.backgroundUpdates.start()
-            }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.updates.onDiscovery = { [weak owner = self] update in owner?.backgroundUpdates.accept(update) }
+            self.backgroundUpdates.start()
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(accessibilityDisplayChanged), name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
-        if !CommandLine.arguments.contains("--screenshot-mode"),
-           let version = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String,
+        if let version = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String,
            ReleaseNotesHistory.shouldPresent(current: version) {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.showReleaseNotes(afterUpdate: true)
             }
-        }
-        if CommandLine.arguments.contains("--show-updates") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.checkForUpdates(nil) }
-        }
-        if CommandLine.arguments.contains("--show-menu-settings") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.showMenuBarSettings(nil) }
-        }
-        if CommandLine.arguments.contains("--show-details") {
-            NSApp.activate(ignoringOtherApps: true)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.toggleDetails() }
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(prepareForSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(wake), name: NSWorkspace.didWakeNotification, object: nil)
@@ -376,7 +360,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if #available(macOS 26.0, *), let glass = panel?.contentView?.subviews.first as? AdaptiveGlassView { glass.updateMaterialTint() }
     }
     private func applyAppearance() {
-        guard !CommandLine.arguments.contains("--screenshot-mode") else { return }
         NSApp.appearance = model.settings.appearanceMode.appKitAppearance
         panel?.invalidateShadow()
         accessibilityDisplayChanged()
@@ -439,13 +422,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarSettings?.present()
     }
     private func update(recordHistory: Bool = false) {
-        if CommandLine.arguments.contains("--screenshot-mode") {
-            model.applyScreenshotFixture()
-        } else {
-            sampling.sample(recordHistory: recordHistory)
-            return
-        }
-        updateMeter()
+        sampling.sample(recordHistory: recordHistory)
     }
     private func updateMeter() {
         meter.reading = model.reading
@@ -475,9 +452,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func wake() {
         samplingSuspended = false
         restartSamplingTimer()
-        if !CommandLine.arguments.contains("--screenshot-mode") { MainActor.assumeIsolated { backgroundUpdates.start() } }
-        if CommandLine.arguments.contains("--screenshot-mode") { update() }
-        else { sampling.resumeAfterWake() }
+        MainActor.assumeIsolated { backgroundUpdates.start() }
+        sampling.resumeAfterWake()
     }
     @MainActor private lazy var updates = UpdateController()
     @MainActor private lazy var backgroundUpdates = BackgroundUpdateChecker(settings: model.settings)
@@ -503,7 +479,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { [weak self] in self?.volumesChanged() }
             return
         }
-        guard !CommandLine.arguments.contains("--screenshot-mode") else { return }
         // Mount notifications can arrive back-to-back. Refresh only disk fields,
         // preserving CPU/network baselines and the menu bar's current readings.
         sampling.refreshDisks()
@@ -529,7 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleDetails()
         }
     }
-    @objc private func toggleDetails() {
+    @objc func toggleDetails() {
         guard let button = item.button, let statusWindow = button.window else { return }
         if panel.isVisible { panel.orderOut(nil); return }
         model.layout.isVisible = true
@@ -551,11 +526,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.makeKeyAndOrderFront(nil)
         panel.invalidateShadow()
         panel.makeFirstResponder(nil)
-        if let index = CommandLine.arguments.firstIndex(of: "--panel-report"), CommandLine.arguments.count > index + 1 {
-            let report: [String: Any] = ["panelTop": panel.frame.maxY, "menuBottom": anchor.minY, "visibleTop": screen.visibleFrame.maxY, "gap": anchor.minY - panel.frame.maxY, "width": panel.frame.width, "height": panel.frame.height, "surface": String(describing: type(of: panel.contentView!.subviews.first!)), "appearance": panel.effectiveAppearance.name.rawValue, "appearanceFollowsSystem": NSApp.appearance == nil, "refreshInterval": model.settings.refreshInterval.seconds, "timerInterval": timer?.timeInterval ?? 0, "reduceTransparency": NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency]
-            if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) {
-                try? data.write(to: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
-            }
-        }
     }
 }

@@ -25,7 +25,7 @@ Tag 去掉 v 后必须完整等于 VERSION（包括预发布后缀），alpha / 
 CI 通过 `--ci-build` 生成仅用于开发验证的 ad-hoc 安装映像；公开 Release 不使用此选项，正式版仍强制检查 Developer ID 与公证。
 图标保留 Apple 标准的 16、32、128、256、512 点及各自 2x 槽位（最高 1024 像素），从同一 SVG 生成一个 `AppIcon.icns`；渲染时将 RGB 按 8 级步长量化、保留完整 8 位透明度，再无损重编码 PNG，以减少细微渐变噪声；图案与轮廓不变，颜色精度略有降低。
 DMG 挂载卷通过硬链接将 App 图标作为 `.VolumeIcon.icns`，不复制第二份数据，再写入 Finder 自定图标标记并转换为只读压缩映像；打包检查会验证两者共享同一 inode。
-原生运行回归由独立 `./test-runtime.sh` 执行，不编入发布 App；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
+原生运行回归由独立 `./test-runtime.sh` 执行，不编入发布 App；截图夹具仅由 `scripts/render-docs.sh` 从 `Tests/Support` 编译，预览固定开机时长通过专用编译标记隔离，发布构建不包含演示模式、自动展开窗口或调试报告入口；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
 最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 12 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
 后续公开附件只有两份 DMG 安装映像；不上传独立 SHA-256 文件或 manifest。GitHub 自动生成附件摘要，发布后工作流将其与本地最终 DMG 的大小和 SHA-256 逐一核对。Release notes 来自 CHANGELOG 中与完整版本精确匹配的章节。
 Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；首次打开的手动确认方式见 README；安装脚本和 Cask 不自动删除隔离标记。更新器仅处理已验证辅助程序的私有副本，边界见 SECURITY.md。

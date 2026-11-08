@@ -2,26 +2,31 @@
 
 ## [Unreleased]
 
-- Add synchronized chart pinning while recording continues, menu bar memory-capacity and bit-rate formats, persistent IP masking, layout-only reset, and an optional system-registered global shortcut with conflict rollback. Defaults preserve existing display formats and assign no shortcut.
-- 增加四图同步固定与恢复实时、菜单栏内存容量和比特速率格式、持久隐藏 IP、仅恢复指标布局，以及默认关闭的全局快捷键；注册冲突保留旧组合，后台采样不受图表固定影响。
+## [0.1.0-alpha.7] - 2026-11-08
 
-- Reduce background hardware polling, cache GPU core counts and display-only network addresses, and skip unchanged menu bar images and hidden plot preparation. Preserve continuous CPU/GPU/memory/network history and establish fresh disk I/O baselines on reopening.
-- Add optional energy saving (off by default), including following system Low Power Mode. While active, closed-overview sampling uses at least five-second intervals; opening the overview restores the configured interval.
-- Add persistent 2-minute, 15-minute and 1-hour history views, asynchronous loading with live-sample merging and stale-request protection, and bounded multi-channel extrema rendering using actual samples.
-- Add Copy Diagnostics to the menu and About window using a privacy allowlist; synchronize English, Simplified Chinese, README and detailed documentation. Extend the performance harness with temporary history storage, configurable timing, process wakeups and disk I/O.
-- 减少后台硬件轮询，缓存 GPU 核心数和仅用于显示的网络地址；跳过不变的菜单栏位图及隐藏图表点准备。持续记录 CPU/GPU/内存/网络历史，重新打开详情时重建磁盘读写基线。
-- 增加默认关闭的可选省电模式，可跟随系统低电量模式；生效时后台采样至少五秒一次，打开详情恢复设定间隔。
-- 增加跨重启保存的两分钟、十五分钟、一小时历史范围，后台读取并合并实时采样，拒绝过期请求覆盖新范围；使用真实采样的多通道极值绘图，限制图表点数。
-- 菜单与关于窗口增加白名单诊断复制，同步中英文及文档；性能工具支持临时历史数据库、可配置时长、进程唤醒和磁盘 I/O 测量。
+<!-- neylu:en -->
+### English
 
-- Simplify and align the English and Chinese READMEs, move detailed update guidance to paired documents, correct outdated build/security/metrics instructions, and check documentation links, commands and requirements in CI.
-- 精简并统一中英文 README，将详细更新说明移至成对文档，修正过时的构建、安全与指标说明，并在 CI 检查文档链接、命令和系统要求。
+- **Lower background overhead:** Cache display-only network addresses and GPU core counts, pause detail-only hardware polling while the overview is closed, and skip unchanged menu bar images and hidden plot preparation. CPU, GPU, memory, and network history continues recording.
+- **Optional energy saving:** Choose Off (the default), Follow System Low Power Mode, or On. When active, closed-overview sampling uses intervals of at least five seconds; opening the overview restores your configured interval.
+- **History and pinned charts:** Switch between two-minute, fifteen-minute, and one-hour views. Click a chart to pin the time range and synchronized readouts across all four charts while recording continues; click again or use the play button to resume live charts. History loads asynchronously and rendering preserves actual sample timestamps and extrema.
+- **Menu bar display options:** Show memory as a percentage or used capacity, and network rates as bytes or bits per second. Hide the IP address, restore the default metric layout without clearing history or other preferences, and assign an optional global shortcut. Shortcut conflicts preserve the previous binding; no Accessibility permission or global keyboard monitor is required.
+- **Diagnostics and native interaction:** Copy a privacy-filtered diagnostic summary from settings or About. Refine chart focus indicators on macOS 14+ and avoid automatically selecting the first control in utility windows, while preserving keyboard navigation and macOS 12/13 behavior.
+- **Cleanup and documentation:** Remove obsolete development launch switches and raw diagnostic output. Keep screenshot fixtures in the documentation tool rather than the shipped app, retain compact native packaging, and synchronize English and Chinese documentation and previews.
 
-- Avoid automatically focusing the first link or control when utility windows open without a keyboard action; retain native Tab navigation and focus in already-open windows.
-- 工具窗口由鼠标或自动打开时不再默认聚焦第一个链接或控件，保留 Tab 导航及已打开窗口中的焦点。
+This preview supports macOS 12 and later on Apple Silicon and Intel. It is ad hoc signed and not notarized by Apple; see the README for first-launch instructions. macOS 12 on physical hardware, other processor models, and real multi-display/VPN transitions still require additional validation. A simulated day of recording is covered by regression tests; it is not a day-long hardware endurance test.
 
-- Refine chart keyboard focus on macOS 14+: replace the default full-chart halo with a subtle baseline while retaining arrow-key inspection and a stronger indicator for Increase Contrast. macOS 12/13 retain the native focus indicator.
-- 优化 macOS 14+ 的图表聚焦样式：将整块粗框改为轻量底部细线，保留方向键读数，并适配提高对比度；macOS 12/13 保留系统原生焦点提示。
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **减少后台开销：** 缓存仅用于显示的网络地址和 GPU 核心数，详情关闭时暂停详情专用硬件轮询，跳过不变的菜单栏位图和隐藏图表准备；CPU、GPU、内存和网络历史持续记录。
+- **可选省电模式：** 提供默认关闭、跟随系统低电量模式、开启三种选择。生效时详情关闭后的采样间隔至少五秒，打开详情恢复设定间隔。
+- **历史范围与图表固定：** 支持两分钟、十五分钟、一小时视图；点击图表固定四图的时间范围和同步读数，后台继续记录，再次点击或使用播放按钮恢复实时。历史异步读取，绘图保留真实采样时间和极值。
+- **菜单栏显示选项：** 内存可显示使用率或已用容量，网速可显示字节或比特每秒；支持隐藏 IP、仅恢复默认指标布局而不清除历史和其他偏好，以及默认关闭的全局快捷键。快捷键冲突保留旧组合，无需辅助功能权限或全局键盘监听。
+- **诊断与原生交互：** 设置与关于窗口可复制经过隐私过滤的诊断摘要；优化 macOS 14+ 图表焦点提示，工具窗口不再自动选中首个控件，保留键盘导航和 macOS 12/13 原生行为。
+- **清理与文档：** 删除闲置开发启动参数和旧的原始诊断输出，将截图夹具移至文档工具，不随 App 分发；保持轻量原生打包，同步中英文文档与预览图。
+
+本预发布版支持 Apple Silicon 和 Intel 的 macOS 12 及以上系统，仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。macOS 12 真机、其他处理器型号及真实多屏／VPN 切换仍需补充验证。回归测试覆盖模拟一天采样，不等同于一天真机耐久测试。
 
 ## [0.1.0-alpha.6] - 2026-11-08
 

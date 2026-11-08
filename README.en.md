@@ -20,11 +20,11 @@ The preview uses demonstration readings. Native materials adapt to the system ap
 
 ## Features
 
-- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show and reorder it.
+- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show, reorder metrics, and customize memory/network formats.
 - Live charts, CPU temperature on supported hardware, and disk capacity and read/write rates; monitor and eject external drives.
 - Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance.
 - English and Simplified Chinese; configurable refresh intervals, decimal or binary units, and energy-saving options.
-- Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views. No telemetry or monitoring-data uploads.
+- Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. No telemetry or monitoring-data uploads.
 - Built-in update checks, verified installers, and release notes after upgrades.
 
 ## Install

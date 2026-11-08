@@ -36,6 +36,9 @@ if CommandLine.arguments.contains("--idle-process") {
     precondition(!persistent || model.historyStorageAvailable, "Temporary history store failed to open")
     let delegate = AppDelegate(model: model)
     NSApp.delegate = delegate
+    if CommandLine.arguments.contains("--show-details") {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { delegate.toggleDetails() }
+    }
     var startCPU = 0.0, startWall = 0.0
     var initialUsage: rusage_info_v4?
     Timer.scheduledTimer(withTimeInterval: warmup, repeats: false) { _ in

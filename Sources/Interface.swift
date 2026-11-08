@@ -47,7 +47,7 @@ final class MonitorModel: ObservableObject {
     init(persistHistory: Bool = true, historyURL: URL? = nil) {
         settings.onError = { [weak self] message in self?.alerts.message = message }
         settings.onHistoryRangeChange = { [weak self] in self?.reloadHistory() }
-        if !persistHistory || CommandLine.arguments.contains("--screenshot-mode") { return }
+        if !persistHistory { return }
         do {
             let store = try HistoryStore(url: historyURL ?? HistoryStore.defaultURL)
             let now = Date()

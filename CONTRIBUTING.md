@@ -44,3 +44,5 @@ UI 优先使用系统组件、语义颜色和系统材质。应用标识统一�
 中英文 README 保持相同的信息、功能顺序、安装命令和文档入口；首页面向用户，详细原理放入 docs。最新版本通过 Release 徽标和 VERSION 获取，不在首页写固定版本号。修改运行要求、网络访问、数据保存、安装或更新行为时，同时核对 README、docs/METRICS.md、docs/UPDATING.md、docs/UPDATING.en.md、SECURITY.md 与 docs/RELEASING.md。
 
 `python3 -m unittest discover -s Tests -p 'test_*.py'` 包含文档检查：本地链接和图片、中英文 README 命令与入口、源码最低系统要求及过期版本声明。历史 CHANGELOG 保留各版本当时的行为，不以当前实现覆盖旧记录。未发布改动只写入 Unreleased。
+
+文档预览使用 `./scripts/render-docs.sh /private/tmp/neylu-preview --language zh-Hans`，英文使用 `--language en`。演示夹具位于 `Tests/Support`，仅预览编译启用 `NEYLU_PREVIEW`；发布 App 不提供截图模式、调试报告或自动展开窗口等开发参数。依赖注入接口保留，以便隔离临时数据库、登录服务、网络和快捷键注册边界。

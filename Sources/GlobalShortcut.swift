@@ -20,7 +20,6 @@ final class GlobalShortcut {
     typealias Register = (UInt32, UInt32, EventHotKeyID, inout EventHotKeyRef?) -> OSStatus
     private let register: Register
     private let unregister: (EventHotKeyRef) -> Void
-    private let usesSystemHandler: Bool
     private var registration: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private var held = false
@@ -32,8 +31,6 @@ final class GlobalShortcut {
             RegisterEventHotKey(key, modifiers, id, GetApplicationEventTarget(), 0, &result)
         }
         self.unregister = unregister ?? { UnregisterEventHotKey($0) }
-        usesSystemHandler = register == nil
-        guard usesSystemHandler else { return }
         var types = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
                      EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
         InstallEventHandler(GetApplicationEventTarget(), { _, event, context in
@@ -57,7 +54,7 @@ final class GlobalShortcut {
         var newRegistration: EventHotKeyRef?
         let nextID = generation &+ 1
         if let next {
-            guard (!usesSystemHandler || handler != nil), next.isValid,
+            guard handler != nil,
                   register(next.key, next.modifiers, EventHotKeyID(signature: 0x4E594C55, id: nextID), &newRegistration) == noErr else { return false }
         }
         if let registration { unregister(registration) }

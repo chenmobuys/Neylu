@@ -375,8 +375,11 @@ struct MonitorFooter: View {
         }
     }
     private var uptime: String {
-        if CommandLine.arguments.contains("--screenshot-mode") { return L10n.uptime(minutes: 2 * 1440 + 6 * 60 + 18) }
+        #if NEYLU_PREVIEW
+        return L10n.uptime(minutes: 2 * 1440 + 6 * 60 + 18)
+        #else
         return L10n.uptime(minutes: elapsedSinceBoot().map { Int($0) / 60 })
+        #endif
     }
 }
 

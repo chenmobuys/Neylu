@@ -6,6 +6,7 @@ import Carbon.HIToolbox
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
+    _ = NSApplication.shared
     let polishSuite = "Neylu-polish-" + UUID().uuidString
     let polishDefaults = UserDefaults(suiteName: polishSuite)!
     precondition(MenuBarFormats.load(from: polishDefaults) == MenuBarFormats())
