@@ -38,7 +38,7 @@ Actions 使用 `scripts/test-ci.sh --compile-only` 与 `--run-only` 两个独立
 - `adhoc`：各通道均可发布，Release 标题、说明、下载索引与 Homebrew 首次启动提示明确说明未经 Apple 公证；仍严格验证签名、架构、版本及校验和。
 - `notarized`：各通道均强制 Developer ID 签名与公证，任何失败都会中止，绝不自动降级。
 
-当前先发布 RC；macOS 12 和 Intel 真机不可用，明确记录未实测范围，不据此声称完成全部验收。详见 [兼容性验收 / Compatibility](COMPATIBILITY.md)。
+首个正式版为 0.1.0，采用明确披露的未公证发行模式；macOS 12 和 Intel 真机不可用，继续记录未实测范围，不据此声称完成全部验收。详见 [兼容性验收 / Compatibility](COMPATIBILITY.md)。
 
 ## 可选：Developer ID 与公证
 
@@ -82,7 +82,7 @@ Actions 使用 `scripts/test-ci.sh --compile-only` 与 `--run-only` 两个独立
 
 无需额外服务器、个人 PAT、Apple Developer ID 或新的仓库 Secret。客户端使用系统 XMLParser，不捆绑 Sparkle 框架；`neylu:sha256` 扩展承载已核对的安装包摘要，继续执行已有的下载完整性、版本、架构和应用代码签名验证。这不是 Sparkle 的 EdDSA 更新签名，不能替代 Apple 签名、公证或独立的发布者身份认证；信任边界仍是本仓库的 HTTPS 发布渠道。
 
-客户端拒绝 DTD、实体声明、外部实体、超限 XML、重复版本及不符合约束的安装包地址或摘要；不会退回未登录 GitHub API。正式版不接收测试版，最低 macOS 要求不满足的版本不会安装。
+客户端拒绝 DTD、实体声明、外部实体、超限 XML、重复版本及不符合约束的安装包地址或摘要；不会退回未登录 GitHub API。所有安装版本默认只检查正式版；仅用户主动选择「测试版更新 → Neylu 测试版」后包含预发布。最低 macOS 要求不满足的版本不会安装。
 
 修改 appcast 发布脚本后，推送 main 会同步当前已公开版本，便于首次初始化。也可在 Actions → Appcast 手动输入已公开 tag 重跑；无需移动 tag、重新构建或替换既有 DMG。原 Homebrew 自动同步保持不变。
 

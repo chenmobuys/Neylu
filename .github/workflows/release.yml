@@ -131,7 +131,7 @@ jobs:
             cp .build/published/* dist/
           else
             flags=()
-            if [ "$CHANNEL" = preview ]; then flags+=(--prerelease); fi
+            if [ "$CHANNEL" = preview ]; then flags+=(--prerelease); else flags+=(--latest); fi
             title="Neylu $RELEASE_TAG"
             if [ "$DISTRIBUTION_MODE" = adhoc ]; then title="$title (Not notarized)"; fi
             gh release create "$RELEASE_TAG" --verify-tag --title "$title" \

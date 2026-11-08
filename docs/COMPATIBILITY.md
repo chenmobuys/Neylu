@@ -11,8 +11,8 @@ The deployment target is macOS 12, with Apple Silicon and Intel builds. A deploy
 | Intel 真机 / Physical Intel Macs | 无设备 / No device available | 尚未实测 / Not tested |
 | 其他芯片、外置磁盘 / Other chips and external drives | 可用能力检测与相关回归 / Capability detection and regression coverage | 本机无外置物理磁盘；真实插拔、弹出未实测，也未覆盖所有传感器 / No external physical disk attached; connection/ejection and every sensor remain untested |
 
-当前保留 RC 状态；缺失读数由能力检测隐藏，不能以零值假装支持。DMG 挂载测试不代表外置物理磁盘弹出验收。
-The current release remains an RC. Capability detection hides unavailable readings rather than presenting zero as supported data. Mounting a DMG does not validate physical-drive ejection.
+正式版保留上述未实测范围说明；缺失读数由能力检测隐藏，不能以零值假装支持。DMG 挂载测试不代表外置物理磁盘弹出验收。
+Stable releases retain the untested-environment disclosures above. Capability detection hides unavailable readings rather than presenting zero as supported data. Mounting a DMG does not validate physical-drive ejection.
 
 发行包仅 ad-hoc 签名，未经 Apple 公证。首次打开见 [中文说明](UPDATING.md) / [English instructions](UPDATING.en.md)。
 Installers are ad hoc signed and not notarized by Apple. Follow the first-launch instructions linked above.

@@ -1,8 +1,8 @@
 # 正式版验收 / Release readiness
 
-验收日期 / Review date: 2026-11-08。
-当前公开版为 RC；本轮修复记在 Unreleased，尚未创建正式版 tag。
-The published release remains an RC. These fixes are recorded under Unreleased; no stable tag has been created.
+验收日期 / Review date: 2026-11-08。发行日期 / Release date: 2026-11-09。
+此记录用于首个正式版 0.1.0（构建 12）；发行模式为明确披露的未公证版本。
+This record covers the first stable release, 0.1.0 (build 12), distributed with explicit unnotarized-release disclosures.
 
 ## 本轮收尾 / Stabilization
 
@@ -35,5 +35,5 @@ Distribution remains `adhoc`: not notarized by Apple. First launch may require s
 
 ## 正式发布边界 / Stable-release boundary
 
-在上述范围内，可以准备首个明确标注未公证的 `0.1.0`，不再以增加功能作为发布前提。正式发布时仍需将 Unreleased 整理为对应版本、更新 VERSION 和 BUILD_NUMBER，再由 tag 触发自动发行，核对双架构附件、Homebrew、静态订阅与下载页；不覆盖已公开 RC 附件。
-Within these documented limits, the project can prepare its first explicitly unnotarized `0.1.0`; more features are not a release prerequisite. Stable publication still requires moving Unreleased into the matching version, updating VERSION and BUILD_NUMBER, and using a release tag to trigger automation. Verify both installers, Homebrew, static feeds and the download page, without replacing public RC assets.
+在上述验收范围内发布明确标注未公证的 `0.1.0`。版本、构建号和双语更新说明统一由仓库维护，tag 触发自动发行；发布结果以 Release 工作流为准，并核对双架构附件、Homebrew、静态订阅与下载页，不覆盖已公开 RC 附件。
+Release the explicitly unnotarized `0.1.0` within these documented limits. The repository maintains matching version, build number and bilingual notes; a tag triggers automated distribution. The Release workflow records the publication result. Verify both installers, Homebrew, static feeds and the download page, without replacing public RC assets.

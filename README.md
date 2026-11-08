@@ -4,7 +4,7 @@
 <p align="center">安静、紧凑的原生 macOS 菜单栏监控工具。</p>
 
 [![CI](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml/badge.svg)](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases&sort=semver)](https://github.com/chenmobuys/Neylu/releases)
+[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?sort=semver)](https://github.com/chenmobuys/Neylu/releases/latest)
 [![MIT](https://img.shields.io/github/license/chenmobuys/Neylu)](LICENSE)
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-111827?logo=apple&logoColor=white)
 ![Apple Silicon and Intel](https://img.shields.io/badge/arch-arm64%20%7C%20x86__64-007AFF)
