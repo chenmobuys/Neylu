@@ -1,0 +1,4 @@
+module NeyluLegacyServiceManagement {
+    header "include/NeyluLegacyServiceManagement.h"
+    export *
+}

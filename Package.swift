@@ -5,8 +5,10 @@ let package = Package(
   name: "Neylu",
   platforms: [.macOS(.v12)],
   targets: [
+    .systemLibrary(name: "NeyluLegacyServiceManagement", path: "Sources/LegacyServiceManagement"),
     .target(
-      name: "NeyluCore", path: "Sources", exclude: ["main.swift", "Updater", "LoginHelper"],
+      name: "NeyluCore", dependencies: ["NeyluLegacyServiceManagement"], path: "Sources",
+      exclude: ["main.swift", "Updater", "LoginHelper", "LegacyServiceManagement"],
       linkerSettings: [
         .linkedLibrary("sqlite3"), .linkedFramework("Carbon"),
         .linkedFramework("ServiceManagement"), .linkedFramework("DiskArbitration"),

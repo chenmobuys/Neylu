@@ -30,6 +30,8 @@ UI 优先使用系统组件、语义颜色和系统材质。应用标识统一�
 默认图标源为 `Assets/AppIcon-v5-vector.svg`，每次构建从矢量直接渲染各个尺寸。
 温度与 IOKit 统计需要真机验证；CI 的虚拟机不能证明全部传感器兼容。
 
+macOS 12 的登录项状态查询通过 `Sources/LegacyServiceManagement` 中仅含头文件的系统兼容模块导入；仅对无法替代的单次旧 API 调用局部处理弃用诊断，不全局关闭警告。macOS 13+ 仍用 SMAppService。Swift Testing 以 `-warnings-as-errors` 检查 ARM / Intel 的 macOS 12 目标，并确认 macOS 13 目标拒绝旧接口调用。原生编译入口共用 `scripts/swift-sources.sh` 中的源文件与模块搜索参数。
+
 提交贡献表示你有权提交相应内容，并同意贡献按仓库 MIT 许可分发；无需签署额外 CLA。
 
 ## 多语言

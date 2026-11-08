@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.10] - 2026-11-08
+
+<!-- neylu:en -->
+### English
+
+- **Clean compatibility builds:** Isolate the required macOS 12 login-item status query in a header-only system compatibility module. Handle the deprecation diagnostic only around that single legacy call; all other compiler diagnostics remain enabled. Preserve the system-reported state and Core Foundation ownership rules.
+- **Enforced version boundaries:** macOS 13 and later continue using SMAppService. Swift Testing verifies that the compatibility query compiles without warnings for both macOS 12 architecture targets and is rejected for macOS 13 targets, with warnings treated as errors.
+- **Consistent build entry points:** Share the module search path across app, documentation-preview, and performance builds, and synchronize development and release instructions. No additional framework or runtime dependency is bundled.
+
+This preview supports macOS 12 and later on Apple Silicon and Intel. Login-item behavior and saved preferences are unchanged. It is ad hoc signed and not notarized by Apple; see the README for first-launch instructions. macOS 12 on physical hardware still requires additional validation.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- **消除兼容接口编译警告：** 将 macOS 12 必需的登录项状态查询隔离到仅含头文件的系统兼容模块，仅在该次旧接口调用处处理弃用诊断，其他编译诊断保持开启；保留系统真实状态查询及 Core Foundation 内存所有权规则。
+- **强制检查版本边界：** macOS 13 及以上继续使用 SMAppService。Swift Testing 以警告视为错误验证两种架构的 macOS 12 目标均可无警告编译，并确认 macOS 13 目标拒绝旧查询接口。
+- **统一构建入口：** 应用、文档预览和性能构建共用模块搜索路径，同步开发与发布说明；不向安装包增加额外框架或运行时依赖。
+
+本预发布版支持 Apple Silicon 和 Intel 的 macOS 12 及以上系统，开机启动行为及已保存设置不变，仅 ad-hoc 签名，未经 Apple 公证；首次打开方式见 README。macOS 12 真机仍需补充验证。
+
 ## [0.1.0-alpha.9] - 2026-11-08
 
 <!-- neylu:en -->

@@ -22,7 +22,7 @@ xcrun swift -module-cache-path "$task_cache" Assets/render-vector-icon.swift Ass
 iconutil -c icns "$iconset_path" -o "$app_path/Contents/Resources/AppIcon.icns"
 python3 Assets/optimize-icon.py "$app_path/Contents/Resources/AppIcon.icns"
 xcrun swiftc -module-cache-path "$task_cache" -swift-version 5 -Osize -whole-module-optimization -target "$target_arch-apple-macosx12.0" \
-  "${neylu_sources[@]}" Sources/main.swift \
+  "${neylu_swift_flags[@]}" "${neylu_sources[@]}" Sources/main.swift \
   -o "$app_path/Contents/MacOS/Neylu" -framework AppKit -framework SwiftUI -framework Carbon \
   -framework SystemConfiguration -framework ServiceManagement -framework IOKit -framework DiskArbitration -lsqlite3
 # Remove debug/local symbol-table entries before signing; keep global symbols

@@ -1,5 +1,6 @@
 import AppKit
 import ServiceManagement
+import NeyluLegacyServiceManagement
 
 enum LoginItemState { case disabled, enabled, requiresApproval }
 protocol LoginItemService {
@@ -45,7 +46,7 @@ struct SystemLoginItems: LoginItemService {
 @available(macOS, introduced: 12.0, obsoleted: 13.0)
 private enum LegacyLoginItems {
     static var enabled: Bool {
-        guard let job = SMJobCopyDictionary(kSMDomainUserLaunchd, SystemLoginItems.helperIdentifier as CFString)?.takeRetainedValue() as? [String: Any] else { return false }
+        guard let job = NeyluCopyLegacyLoginJob(SystemLoginItems.helperIdentifier as CFString) as? [String: Any] else { return false }
         return job["OnDemand"] as? Bool ?? false
     }
     static func setEnabled(_ enabled: Bool) -> Bool {

@@ -2,6 +2,8 @@
 
 [简体中文](UPDATING.md) · English
 
+Login items use the legacy system API on macOS 12 and SMAppService on macOS 13 and later. The build-time compatibility wrapper does not change login-item behavior or saved preferences.
+
 ## Update methods
 
 - Choose **Check for Updates…** in settings, then **Update Now** when a release is available.
