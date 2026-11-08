@@ -7,7 +7,7 @@ mkdir -p .build/docs-renderer .build/ModuleCache
 # shellcheck source=scripts/swift-sources.sh
 source scripts/swift-sources.sh
 cp scripts/render-docs.swift .build/docs-renderer/main.swift
-xcrun swiftc -module-cache-path "$PWD/.build/ModuleCache" -swift-version 5 -O -D NEYLU_PREVIEW \
+xcrun swiftc -module-cache-path "$PWD/.build/ModuleCache" -swift-version 5 -O -D NEYLU_PREVIEW -target "$(uname -m)-apple-macosx12.0" \
   "${neylu_swift_flags[@]}" "${neylu_sources[@]}" Tests/Support/ScreenshotFixtures.swift \
   .build/docs-renderer/main.swift -o .build/docs-renderer/render \
   -framework AppKit -framework SwiftUI -framework Carbon -framework SystemConfiguration -framework ServiceManagement \

@@ -2,8 +2,18 @@
 # Swift Testing remains the test runner; this wrapper only monitors its process.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-echo '[tests] Compiling Swift Testing targets'
-swift build --build-tests --configuration release -Xswiftc -enable-testing
+test_mode="${1:-}"
+if [ "$test_mode" = --compile-only ] || [ "$test_mode" = --run-only ]; then shift; fi
+if [ "$test_mode" != --run-only ]; then
+  compile_started=$SECONDS
+  echo '[tests] Compiling Swift Testing targets'
+  swift build --build-tests --configuration release -Xswiftc -enable-testing
+  echo "[tests] Compilation completed in $((SECONDS - compile_started))s"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    printf 'Swift Testing compilation: **%ss**\n' "$((SECONDS - compile_started))" >> "$GITHUB_STEP_SUMMARY"
+  fi
+fi
+if [ "$test_mode" = --compile-only ]; then exit 0; fi
 
 test_scratch="$(mktemp -d "${TMPDIR:-/private/tmp}/Neylu-test-monitor.XXXXXX")"
 export NEYLU_TEST_PROGRESS="$test_scratch/progress.log"
@@ -31,6 +41,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+runtime_started=$SECONDS
 echo '[tests] Executing Swift Testing (runtime deadline: 180s)'
 swift test --skip-build --configuration release --disable-xctest -Xswiftc -enable-testing "$@" &
 test_pid=$!
@@ -67,4 +78,8 @@ wait "$test_pid"
 test_status=$?
 set -e
 test_pid=''
+echo "[tests] Execution completed in $((SECONDS - runtime_started))s; exit status: $test_status"
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  printf 'Swift Testing execution: **%ss**, exit status **%s**\n' "$((SECONDS - runtime_started))" "$test_status" >> "$GITHUB_STEP_SUMMARY"
+fi
 exit "$test_status"

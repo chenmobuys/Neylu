@@ -29,11 +29,22 @@ final class DiskActions: ObservableObject {
             DispatchQueue.main.async { [self] in
                 ejectingID = nil
                 if case .failure(let error) = result {
-                    failure = DiskEjectFailure(name: volume.name, message: error.localizedDescription)
+                    failure = DiskEjectFailure(name: volume.name, message: Self.failureMessage(error))
                 }
                 onFinish?()
             }
         }
+    }
+
+    static func failureMessage(_ error: Error) -> String {
+        let failure = error as NSError
+        let suggestion = failure.localizedRecoverySuggestion
+        let underlying = failure.userInfo[NSUnderlyingErrorKey] as? NSError
+        let busy = (failure.domain == NSPOSIXErrorDomain && failure.code == Int(EBUSY))
+            || (underlying?.domain == NSPOSIXErrorDomain && underlying?.code == Int(EBUSY))
+            || (failure.domain == NSOSStatusErrorDomain && failure.code == -47)
+        let recovery = suggestion ?? (busy ? L("disk.eject_busy_hint") : nil)
+        return failure.localizedDescription + (recovery.map { "\n" + $0 } ?? "")
     }
 
     private static func ejectExternalVolume(_ volume: ExternalDiskReading) throws {

@@ -39,12 +39,24 @@ struct MenuBarItem: Equatable {
     var enabled: Bool
 }
 
+enum MenuBarDensity: String, CaseIterable {
+    case compact, standard
+    var title: String {
+        switch self {
+        case .compact: return L("menu_bar.density.compact")
+        case .standard: return L("menu_bar.density.standard")
+        }
+    }
+}
+
 struct MenuBarConfiguration: Equatable {
+    var density: MenuBarDensity
     private(set) var items: [MenuBarItem]
     static let defaults = MenuBarConfiguration(items: MenuBarMetric.allCases.map {
         MenuBarItem(metric: $0, enabled: $0 != .disk && $0 != .temperature)
     })
-    init(items: [MenuBarItem]) {
+    init(items: [MenuBarItem], density: MenuBarDensity = .compact) {
+        self.density = density
         var seen = Set<MenuBarMetric>()
         self.items = items.filter { seen.insert($0.metric).inserted }
         self.items += MenuBarMetric.allCases.filter { !seen.contains($0) }.map { MenuBarItem(metric: $0, enabled: false) }
@@ -66,9 +78,10 @@ struct MenuBarConfiguration: Equatable {
             return MenuBarItem(metric: metric, enabled: enabled)
         }
         if !stored.isEmpty && items.isEmpty { return .defaults }
-        return MenuBarConfiguration(items: items)
+        return MenuBarConfiguration(items: items, density: MenuBarDensity(rawValue: defaults.string(forKey: "menuBarDensity") ?? "") ?? .compact)
     }
     func save(to defaults: UserDefaults = .standard) {
+        defaults.set(density.rawValue, forKey: "menuBarDensity")
         defaults.set(items.map { ["metric": $0.metric.rawValue, "enabled": $0.enabled] as [String: Any] }, forKey: "menuBarItems")
     }
 }

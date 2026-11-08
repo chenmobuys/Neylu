@@ -24,13 +24,30 @@ extension NeyluTests {
       "# Log\n## [Unreleased]\nfuture\n## [1.2.3-alpha.2]\n- second\n## [1.2.3-alpha.1]\n- first\n## [1.2.3]\n- stable\n"
     let notes: String = try ToolRunner.value(
       "release.release_notes(args[0], args[1])", [source, "1.2.3-alpha.2"])
-    #expect(notes.contains("second") && !notes.contains("first") && !notes.contains("future"))
+    #expect(notes.contains("second") && !notes.contains("- first") && !notes.contains("future"))
     #expect(
       try ToolRunner.value(
         "release.release_notes(args[0], args[1])", [source, "1.2.3"], as: String.self)
-        == "- stable\n")
+        .hasSuffix("- stable\n"))
     ToolRunner.requireRejected(
       try ToolRunner.call("release.release_notes(args[0], args[1])", [source, "1.2.30"]))
+  }
+  @Test func distributionPolicyAndTapCLI() throws {
+    let source = "## [1.2.3]\n- shipped\n"
+    for mode in ["adhoc", "notarized"] {
+      let notes: String = try ToolRunner.value("release.release_notes(args[0], '1.2.3', args[1])", [source, mode])
+      #expect(notes.contains("neylu-distribution: " + mode))
+      #expect(notes.contains(mode == "adhoc" ? "not notarized by Apple" : "notarized by Apple"))
+      let f = try ToolFixture()
+      let metadata = try f.metadata("1.2.3")
+      let path = try f.json("release.json", metadata)
+      let tap = f.root.appendingPathComponent("tap")
+      try ToolRunner.requireSuccess(ToolRunner.python(TestSupport.root.appendingPathComponent("scripts/update-tap.py").path, ["--tag", "v1.2.3", "--assets", f.root.appendingPathComponent("assets").path, "--metadata", path.path, "--tap", tap.path, "--distribution", mode]))
+      let content = try String(contentsOf: tap.appendingPathComponent("Casks/neylu.rb"), encoding: .utf8)
+      #expect(content.contains("# Distribution: " + mode))
+      #expect(content.contains("quarantine") == (mode == "adhoc"))
+      ToolRunner.requireRejected(try ToolRunner.call("tap.apply(Path(args[0]), Path(args[0]).read_text().replace('# Distribution: ' + args[1], '# Distribution: ' + args[2]))", [tap.appendingPathComponent("Casks/neylu.rb").path, mode, mode == "adhoc" ? "notarized" : "adhoc"]))
+    }
   }
   @Test func publishedInstallerDigests() throws {
     let fixture = try ToolFixture()
@@ -69,7 +86,13 @@ extension NeyluTests {
     #expect(
       text.contains(String(repeating: "a", count: 64))
         && text.contains(String(repeating: "b", count: 64)))
-    #expect(!text.contains("no_check") && !text.contains("quarantine"))
+    #expect(!text.contains("no_check") && text.contains("quarantine"))
+    #expect(text.contains("# Distribution: adhoc") && !text.contains("postflight"))
+    let notarized: String = try ToolRunner.value(
+      "release.cask_text(args[0], args[1], json.loads(args[2]), distribution='notarized')",
+      ["owner/Neylu", "1.2.3", checksums])
+    #expect(notarized.contains("# Distribution: notarized") && !notarized.contains("quarantine"))
+    ToolRunner.requireRejected(try ToolRunner.call("release.distribution_mode(args[0])", ["automatic"]))
     for args in [
       ["bad\"/repo", "1.2.3", checksums], ["owner/repo", "1.2.3-alpha.1", checksums],
       ["owner/repo", "1.2.3", "{\"arm64\":\"fake\"}"],

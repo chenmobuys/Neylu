@@ -117,15 +117,48 @@ final class PublisherAPI {
 }
 
 extension NeyluTests {
+  @Test func downloadIndexUsesSemanticVersionsAndCompleteArchitecturePairs() throws {
+    let fixture = try AppcastFixture()
+    var feeds: [String: String] = [:]
+    var olderIntel = ""
+    for arch in ["arm64", "x86_64"] {
+      let item = try #require(fixture.items[arch])
+      let old = try fixture.merge(
+        item.replacingOccurrences(of: "0.1.0-alpha.4", with: "0.1.0-alpha.9"), arch: arch)
+      if arch == "x86_64" { olderIntel = old }
+      var next = item.replacingOccurrences(of: "0.1.0-alpha.4", with: "0.1.0-alpha.10")
+      if arch == "x86_64" { next = next.replacingOccurrences(of: ">12.0.0<", with: ">13.0.0<") }
+      feeds[arch] = try fixture.merge(next, arch: arch, old: old)
+    }
+    func render(_ feeds: [String: String]) throws -> String {
+      let file = try fixture.files.json("feeds.json", feeds)
+      return try ToolRunner.value(
+        "publisher.download_index({'appcast-' + a + '.xml': v.encode() for a, v in json.loads(Path(args[0]).read_text()).items()}).decode()",
+        [file.path])
+    }
+    let index = try render(feeds)
+    #expect(index.contains("v0.1.0-alpha.10/Neylu-0.1.0-alpha.10-arm64.dmg"))
+    #expect(index.contains("v0.1.0-alpha.10/Neylu-0.1.0-alpha.10-x86_64.dmg"))
+    #expect(!index.contains("alpha.9"))
+    #expect(index.contains("macOS 13+") && index.contains("macOS 12+"))
+    feeds["x86_64"] = olderIntel
+    let incomplete = try render(feeds)
+    #expect(incomplete.contains("alpha.9") && !incomplete.contains("alpha.10"))
+  }
   @Test func staticPublisherIdempotenceAndBranchIsolation() throws {
     let fixture = try AppcastFixture()
     let api = PublisherAPI()
     try ToolRunner.requireSuccess(ToolRunner.publish(fixture, api: api.reply))
-    #expect(Set(api.files.keys) == ["appcast-arm64.xml", "appcast-x86_64.xml"])
+    #expect(Set(api.files.keys) == ["appcast-arm64.xml", "appcast-x86_64.xml", "downloads.md"])
     #expect(api.parent == "new-commit")
     api.calls.removeAll()
     try ToolRunner.requireSuccess(ToolRunner.publish(fixture, api: api.reply))
     #expect(api.calls.allSatisfy { $0.method == "GET" })
+    api.files.removeValue(forKey: "downloads.md")
+    api.calls.removeAll()
+    try ToolRunner.requireSuccess(ToolRunner.publish(fixture, api: api.reply))
+    #expect(api.files["downloads.md"] != nil)
+    #expect(api.calls.contains { $0.method == "POST" && $0.path == "git/trees" })
     api.calls.removeAll()
     var changed = fixture.metadata
     changed["body"] = (changed["body"] as! String) + "\nClarified notes"

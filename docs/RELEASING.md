@@ -1,6 +1,6 @@
 # 发布维护
 
-目标仓库：`chenmobuys/Neylu`。当前无 Developer ID 证书，先使用 preview 流程。
+目标仓库：`chenmobuys/Neylu`。当前无 Developer ID 证书，DISTRIBUTION 为 adhoc，所有发行包必须明确标注未经 Apple 公证。
 首发版本为 0.1.0-alpha.1，当前版本以仓库 VERSION 为准。Alpha / Beta / RC 创建 GitHub 预发布；自有 Homebrew tap 也支持这些测试版，不以 Developer ID 为前提。
 
 ## 一次性配置
@@ -22,16 +22,25 @@ git push origin v$(cat VERSION)
 Tag 去掉 v 后必须完整等于 VERSION（包括预发布后缀），alpha / beta / rc 序号从 1 开始。
 预发布版编译、测试和打包后创建 **prerelease**，明确标为早期测试版本，随后调用 Homebrew 工作流直接更新独立 tap，无需合并 PR。
 两种架构分别在 macos-26（arm64）和 macos-26-intel（x86_64）原生 runner 上构建、运行测试。
-CI 通过 `--ci-build` 生成仅用于开发验证的 ad-hoc 安装映像；公开 Release 不使用此选项，正式版仍强制检查 Developer ID 与公证。
+CI 通过 `--ci-build` 生成仅用于开发验证的 ad-hoc 安装映像；公开 Release 不使用此选项；是否强制 Developer ID 与公证由 DISTRIBUTION 决定，与版本通道独立。
 图标保留 Apple 标准的 16、32、128、256、512 点及各自 2x 槽位（最高 1024 像素），从同一 SVG 生成一个 `AppIcon.icns`；渲染时将 RGB 按 8 级步长量化、保留完整 8 位透明度，再无损重编码 PNG，以减少细微渐变噪声；图案与轮廓不变，颜色精度略有降低。
 DMG 挂载卷通过硬链接将 App 图标作为 `.VolumeIcon.icns`，不复制第二份数据，再写入 Finder 自定图标标记并转换为只读压缩映像；打包检查会验证两者共享同一 inode。
 macOS 12 登录项查询由 `Sources/LegacyServiceManagement` 的头文件兼容模块提供，只在单次必需旧调用处局部处理弃用诊断，macOS 13+ 使用 SMAppService。应用、截图预览及性能构建共用 `scripts/swift-sources.sh` 的模块搜索参数；不全局关闭编译警告，也不打包新的运行时库。Swift Testing 以警告视为错误验证两种架构的 macOS 12 目标和 macOS 13 禁用边界。
-CI 的 `scripts/test-ci.sh` 将测试编译与执行分开计时，执行时每 30 秒显示进度，90 秒采集进程堆栈，180 秒仍未完成则失败；不跳过任何 Swift Testing 用例，不运行空的 XCTest 阶段。所有回归由 `swift test --configuration release` 通过 Swift Testing 执行，测试目标不编入发布 App；截图夹具仅由 `scripts/render-docs.sh` 从 `Tests/Support` 编译，预览固定开机时长通过专用编译标记隔离，发布构建不包含演示模式、自动展开窗口或调试报告入口；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
+Actions 使用 `scripts/test-ci.sh --compile-only` 与 `--run-only` 两个独立步骤，分别记录编译与执行耗时并写入步骤摘要，执行时每 30 秒显示进度，90 秒采集进程堆栈，180 秒仍未完成则失败；不跳过任何 Swift Testing 用例，不运行空的 XCTest 阶段。所有回归由 `swift test --configuration release` 通过 Swift Testing 执行，测试目标不编入发布 App；截图夹具仅由 `scripts/render-docs.sh` 从 `Tests/Support` 编译，预览固定开机时长通过专用编译标记隔离，发布构建不包含演示模式、自动展开窗口或调试报告入口；主程序及更新辅助程序使用 `-Osize -whole-module-optimization`，在签名前通过 `strip -S -x` 清理调试与局部符号表，保留全局符号和运行时元数据。
 最终 DMG 采用系统原生 ULMO / LZMA 压缩；系统工具说明其支持 macOS 10.15+，低于本项目 macOS 12 的最低要求。构建后校验映像，并只读挂载检查卷图标及共享存储。
 后续公开附件只有两份 DMG 安装映像；不上传独立 SHA-256 文件或 manifest。GitHub 自动生成附件摘要，发布后工作流将其与本地最终 DMG 的大小和 SHA-256 逐一核对。Release notes 来自 CHANGELOG 中与完整版本精确匹配的章节。
-Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；首次打开的手动确认方式见 README；安装脚本和 Cask 不自动删除隔离标记。更新器仅处理已验证辅助程序的私有副本，边界见 SECURITY.md。
+当前 adhoc 发行包只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件；首次打开的手动确认方式见 README；安装脚本和 Cask 不自动删除隔离标记。更新器仅处理已验证辅助程序的私有副本，边界见 SECURITY.md。
 
-## 正式版：有 Developer ID 后启用
+## 发行通道与签名策略
+
+`VERSION` 决定 Alpha／Beta／RC 预发布或无后缀正式版。`DISTRIBUTION` 独立选择 `adhoc` 或 `notarized`：
+
+- `adhoc`：各通道均可发布，Release 标题、说明、下载索引与 Homebrew 首次启动提示明确说明未经 Apple 公证；仍严格验证签名、架构、版本及校验和。
+- `notarized`：各通道均强制 Developer ID 签名与公证，任何失败都会中止，绝不自动降级。
+
+当前先发布 RC；macOS 12 和 Intel 真机不可用，明确记录未实测范围，不据此声称完成全部验收。详见 [兼容性验收 / Compatibility](COMPATIBILITY.md)。
+
+## 可选：Developer ID 与公证
 
 在 `release` Environment 配置以下 Secrets：
 
@@ -46,12 +55,12 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 
 私钥仅写入 runner 临时目录，权限 0700/0600；独立临时钥匙串在结束时删除，不修改默认钥匙串或输出密钥。
 先签名 `Contents/Helpers/NeyluUpdater` 和 `Contents/Library/LoginItems/NeyluLoginHelper.app`，再对 App 完成签名、公证、staple 和 Gatekeeper 检查，再制作 DMG；随后对 DMG 本身签名、公证和 staple，最后计算校验和。
-任何一步失败都会停止正式发布，不会回退到未签名包。
+任何一步失败都会停止公证发行，不会回退到未签名包。
 
 1. 修改 VERSION、递增 BUILD_NUMBER；更新 CHANGELOG 对应版本段落。
 2. 合并 CI 通过的发布准备改动。
 3. 创建 `v版本号` tag 并 push。工作流创建正式 GitHub Release。
-4. 工作流根据 **已签名、公证后的最终 DMG** 计算 SHA-256，再自动提交到独立 tap。
+4. 工作流根据 **当前发行策略验证后的最终 DMG** 计算 SHA-256，再自动提交到独立 tap。
 5. tap 自身执行 Ruby 语法与 Homebrew 风格检查；无需手动合并 PR。
 
 工作流不覆盖已发布的附件：重跑时会下载既有附件并核对 GitHub 记录的 SHA-256 摘要；Cask 使用既有安装包的真实校验和。
@@ -64,8 +73,10 @@ Preview 只有 ad-hoc 签名，未经 Apple 公证。可先验证 CI 与附件�
 
 1. 使用本仓库临时 `GITHUB_TOKEN` 读取已公开 Release，下载 ARM / Intel 两份最终 DMG，并复核 GitHub SHA-256、实际大小和仓库下载地址。
 2. 从对应 tag 的 `BUILD_NUMBER` 读取构建号、`build.sh` 读取最低系统要求，`scripts/appcast.py` 生成 RSS/Sparkle 命名空间的架构独立订阅，保留各最近十个正式版及测试版。
-3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml`，不修改源码分支或 Release 附件。同版本校验值、大小、构建号或最低系统要求变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
-4. 客户端通过 GitHub 静态内容服务读取固定 HTTPS 地址，不访问 REST API：
+3. `scripts/publish-appcast.py` 仅更新 `updates` 分支中的 `appcast-arm64.xml`、`appcast-x86_64.xml` 及自动生成的 `downloads.md`，不修改源码分支或 Release 附件。同版本校验值、大小、构建号或最低系统要求变化会被拒绝；重跑旧版本保留更新版本，重复同步不产生提交。
+4. `downloads.md` 同步从已验证的双架构订阅生成：按语义版本选择架构齐全的最新正式版／测试版，显示真实系统要求和直接 DMG 链接，README 安装入口指向此页，不依赖 GitHub Releases 的显示顺序。
+
+客户端通过 GitHub 静态内容服务读取固定 HTTPS 地址，不访问 REST API：
    - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-arm64.xml
    - https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-x86_64.xml
 
@@ -104,7 +115,7 @@ Homebrew 工作流的 `GITHUB_TOKEN` 仅具有读取权限，无法跨仓库写�
 
 
 不要在 Homebrew Cask 或安装自动化中添加 `sha256 :no_check`、自动删除 quarantine 或关闭 Gatekeeper 的步骤；这与已验证更新辅助程序私有副本的处理是两个不同范围。
-自有 tap 不等于官方收录；未公证 Alpha 首次打开仍按 README 的系统确认步骤操作。
+自有 tap 不等于官方收录；未公证发行包首次打开仍按 README 的系统确认步骤操作。
 
 ## 发布前文档核对
 

@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+## [0.1.0-rc.1] - 2026-11-08
+
+<!-- neylu:en -->
+### English
+
+- Add compact and standard menu bar spacing with a live preview and saved preferences; preserve stable rate-field widths across unit transitions.
+- Show original download and upload samples on separate tooltip lines. Use an adaptive linear network range with explicit markers and a range label for isolated peaks beyond the displayed range; preserve all recorded values.
+- Keep existing external drives in a stable session order, append newly connected drives, truncate long names with full-name tooltips, and show native eject recovery guidance.
+- Classify update retry actions by failure stage, invalidate callbacks from cancelled attempts, and scope temporary files and updater cleanup to each attempt without following mounted images.
+- Separate release channels from signing policy: support explicitly disclosed ad-hoc stable releases and fail closed when notarized distribution is selected.
+- Separate CI compilation and execution into distinct timed steps and summaries. Generate a bilingual download index from verified appcasts, select complete installer pairs by semantic version, and sort the release badge by SemVer.
+
+This release candidate is ad hoc signed and **not notarized by Apple**. Stable releases may use the same explicitly disclosed mode; notarized distribution remains a separate strict opt-in. See the README for first-launch instructions. macOS 12 and physical Intel Macs have not been tested; CI verifies native ARM/Intel builds and tests on macOS 26.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- 增加紧凑／标准菜单栏间距，实时预览并保存设置；单位变化前后保持速率字段宽度稳定。
+- 网络提示分行展示原始下载与上传采样；自适应线性量程对超范围的孤立尖峰明确标记并显示量程，不改写记录值。
+- 外盘保留会话中已有顺序，新接入磁盘追加到末尾，长名称截断并提示全名，弹出失败提供系统恢复建议。
+- 按失败阶段提供更新重试操作，取消后忽略旧回调，各次临时文件与辅助程序分别管理，清理时不递归进入挂载映像。
+- 发行通道与签名策略分离：支持明确标注的未公证正式版，选择公证发行时失败即中止。
+- CI 编译与执行拆成独立计时步骤并写入摘要；从已验证订阅生成双语下载索引，按语义版本选择架构齐全的安装包，Release 徽标明确按 SemVer 排序。
+
+本候选版仅 ad-hoc 签名，**未经 Apple 公证**。正式版也可使用明确披露的未公证发行模式；公证发行仍需显式选择并完成严格验证。首次打开方式见 README。macOS 12 与 Intel 真机尚未实测；CI 在 macOS 26 上原生构建并测试 ARM／Intel 两种架构。
+
 ## [0.1.0-alpha.10] - 2026-11-08
 
 <!-- neylu:en -->

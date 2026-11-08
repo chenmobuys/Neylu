@@ -24,6 +24,8 @@ final class MonitorModel: ObservableObject {
     @Published private(set) var chartGPU: [GPUPoint] = []
     @Published private(set) var chartMemory: [MemoryPoint] = []
     @Published private(set) var chartNetwork: [NetworkPoint] = []
+    @Published private(set) var chartNetworkSamples: [NetworkPoint] = []
+    @Published private(set) var chartNetworkScale = NetworkChartScale(points: [])
     @Published private(set) var chartGPURendererAvailable = false
     @Published private(set) var chartGPUTilerAvailable = false
     @Published private(set) var isHistoryLoading = false
@@ -161,6 +163,8 @@ final class MonitorModel: ObservableObject {
         chartGPURendererAvailable = !gpu.isEmpty && gpu.allSatisfy { $0.renderer != nil }
         chartGPUTilerAvailable = !gpu.isEmpty && gpu.allSatisfy { $0.tiler != nil }
         chartMemory = HistoryWindow.reduced(memory, timestamp: \.timestamp) { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
+        chartNetworkSamples = network
+        chartNetworkScale = NetworkChartScale(points: network)
         chartNetwork = HistoryWindow.reducedChannels(network, channels: 2) { [$0.download, $0.upload] }
     }
 
@@ -203,7 +207,7 @@ struct MenuBarLayout {
             else { width = 29 }
             result.append(MenuBarSlot(metric: metric, originX: cursor, width: width))
             cursor += width
-            if index < metrics.count - 1 { cursor += metric == .network ? 6 : 5 }
+            if index < metrics.count - 1 { cursor += (metric == .network ? 6 : 5) + (configuration.density == .standard ? 3 : 0) }
         }
         slots = result
         width = metrics.isEmpty ? 20 : ceil(cursor + 4 - Self.leadingTrim - (metrics.last == .network ? 3 : 5.5))
@@ -298,7 +302,7 @@ final class MeterView: NSView {
         (superview as? NSStatusBarButton)?.setAccessibilityLabel(accessibilitySummary)
     }
     var displayKey: [String] {
-        [basis.rawValue] + configuration.visibleMetrics.flatMap { metric -> [String] in
+        [basis.rawValue, configuration.density.rawValue] + configuration.visibleMetrics.flatMap { metric -> [String] in
             if metric == .network { return [metric.rawValue, formattedRate(reading.upload, basis: basis, ready: reading.networkReady), formattedRate(reading.download, basis: basis, ready: reading.networkReady)] }
             return [metric.rawValue, Self.metricValue(metric, reading: reading)]
         }
@@ -691,8 +695,8 @@ struct MetricsOverviewView: View {
                 rateRow(L("metrics.download"), symbol: "arrow.down", bytes: r.download)
                 rateRow(L("metrics.upload"), symbol: "arrow.up", bytes: r.upload)
             }.frame(height: 42)
-            NetworkChart(points: model.chartNetwork, window: model.chartWindow, language: settings.language)
-                .chartInspection(date: $inspection, isPinned: model.isInspectionPinned, togglePin: { model.toggleInspectionPin() }, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.network(model.chartNetwork, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            NetworkChart(points: model.chartNetwork, window: model.chartWindow, language: settings.language, basis: model.basis, scale: model.chartNetworkScale)
+                .chartInspection(date: $inspection, isPinned: model.isInspectionPinned, togglePin: { model.toggleInspectionPin() }, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.network(model.chartNetworkSamples, at: inspection, basis: model.basis, window: model.chartWindow, language: settings.language)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             HStack {
                 fact("IP", value: settings.hideNetworkAddress ? "••••••••" : r.address, truncatesValue: true)
                     .textSelection(.enabled).help(settings.hideNetworkAddress ? L("privacy.address_hidden") : r.address)
@@ -713,7 +717,7 @@ struct MetricsOverviewView: View {
                 Text(r.diskReady ? L("disk.available_prefix") + formattedMemory(r.diskFree, basis: model.basis) : L("disk.unavailable"))
                 Spacer(minLength: 8)
                 Text(r.diskReady ? L("disk.total_prefix") + formattedMemory(r.diskTotal, basis: model.basis) : "—").foregroundStyle(.secondary)
-            }.font(.system(size: 10.5)).monospacedDigit()
+            }.font(.system(size: 10.5)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.85)
             if model.capabilities.diskActivity {
             HStack(spacing: columnGap) {
                 fact(L("metrics.disk_read"), value: formattedDiskRate(r.diskRead, basis: model.basis, ready: r.diskActivityReady)).frame(maxWidth: .infinity)
@@ -732,7 +736,7 @@ struct MetricsOverviewView: View {
                 Text(L("disk.available_prefix") + formattedMemory(volume.free, basis: model.basis))
                 Spacer(minLength: 8)
                 Text(L("disk.total_prefix") + formattedMemory(volume.total, basis: model.basis)).foregroundStyle(.secondary)
-            }.font(.system(size: 10.5)).monospacedDigit()
+            }.font(.system(size: 10.5)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.85)
             if volume.activitySupported || volume.activityReady {
             HStack(spacing: columnGap) {
                 fact(L("metrics.disk_read"), value: formattedDiskRate(volume.read, basis: model.basis, ready: volume.activityReady)).frame(maxWidth: .infinity)
@@ -744,10 +748,10 @@ struct MetricsOverviewView: View {
     private func heading(_ symbol: String, _ title: String, value: String? = nil, ejectVolume: ExternalDiskReading? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Label {
-                Text(title).lineLimit(1).help(title)
+                Text(title).lineLimit(1).truncationMode(.middle).help(title)
             } icon: {
                 Image(systemName: symbol).font(.system(size: 12, weight: .regular)).foregroundStyle(.secondary)
-            }.font(.system(size: 11.5, weight: .medium))
+            }.font(.system(size: 11.5, weight: .medium)).frame(maxWidth: .infinity, alignment: .leading)
             if let volume = ejectVolume {
                 Button { diskActions.eject(volume) } label: {
                     if diskActions.ejectingID == volume.id {

@@ -15,7 +15,7 @@
 "chart.gpu.label" = "GPU over the last two minutes: blue utilization, red renderer and teal tiler; only fully available metrics are stacked, with their average as the total height";
 "chart.memory.help" = "Memory usage, scaled to physical capacity. This shows usage, not memory pressure. Gaps connect recorded endpoints.";
 "chart.memory.label" = "Used memory over the last two minutes; full scale is physical memory capacity";
-"chart.network.help" = "Blue download above; red upload below. Both use the same scale, adjusted to the last two minutes’ peak. Gaps connect recorded endpoints.";
+"chart.network.help" = "Download above the baseline, upload below. Isolated peaks may exceed the adaptive linear range and are marked with triangles. Hover for original rates.";
 "chart.network.label" = "Network data rates over the last two minutes: blue download above, red upload below, using the same scale";
 "chart.sampling_gap_hint" = "No samples are recorded while Neylu is closed or your Mac is asleep. Lines connect recorded samples across gaps; no data is added.";
 "disk.available_prefix" = "Available ";
@@ -93,7 +93,6 @@
 "update.action.download_installer" = "Download Installer";
 "update.action.install" = "Update Now";
 "update.action.later" = "Later";
-"update.action.retry" = "Retry Update";
 "update.current_version_format" = "Current version: %@";
 "update.error.backup_location" = "Your previous installation is backed up at: %@";
 "update.error.bundle_validation" = "The installer failed signature, version, or architecture verification. Download it again from the release page.";
@@ -198,3 +197,19 @@
 "licenses.sections" = "License documents";
 "licenses.copy" = "Copy Full Text";
 "licenses.unavailable" = "This document could not be loaded from the app. Please reinstall Neylu.";
+
+"menu_bar.density" = "Spacing";
+"menu_bar.density.compact" = "Compact";
+"menu_bar.density.standard" = "Standard";
+
+"chart.network.range_format" = "Range %@";
+
+"disk.eject_busy_hint" = "Close files and apps using this disk, then try ejecting it again.";
+
+"update.action.download_again" = "Download Again";
+"update.action.install_again" = "Retry Installation";
+"update.recovery.check" = "Check the release information again, or open the download page.";
+"update.recovery.download" = "Retry downloads a fresh installer and verifies it again.";
+"update.recovery.install" = "Retry the update, or download the DMG for manual installation.";
+
+"link.download_page" = "Download Page";

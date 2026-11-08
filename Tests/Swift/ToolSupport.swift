@@ -66,6 +66,7 @@ enum ToolRunner {
           return value
       tap = module('update_tap', 'scripts/update-tap.py')
       icon = module('optimize_icon', 'Assets/optimize-icon.py')
+      publisher = module('publisher', 'scripts/publish-appcast.py')
       args = sys.argv[2:]
       result = \(expression)
       if result is not None: print(json.dumps(result))

@@ -976,7 +976,7 @@ extension NeyluTests {
       if language == .english {
         #expect(
           text.allSatisfy { $0.range(of: #"[\u4e00-\u9fff]"#, options: .regularExpression) == nil })
-        #expect(text.contains { $0.hasPrefix("Version 0.1.0-alpha.") && $0.contains("Build ") })
+        #expect(text.contains { $0.hasPrefix("Version " + (appBundle.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String ?? "missing")) && $0.contains("Build ") })
       }
     }
     let licenseController = LicenseController(settings: MonitorSettings(), bundle: appBundle)

@@ -15,7 +15,7 @@
 "chart.gpu.label" = "最近两分钟 GPU 等权堆叠图，蓝色利用率、红色渲染、青色 Tiler；仅绘制完整可用指标，总高度为可用指标平均值";
 "chart.memory.help" = "已用内存历史，以物理容量为满刻度；这是使用量，不是内存压力。停采空档连接前后记录，不补写数据";
 "chart.memory.label" = "最近两分钟已用内存曲线，以物理内存总容量为满刻度";
-"chart.network.help" = "上方蓝色：下载；下方红色：上传。共用刻度，随最近两分钟的峰值自动缩放。停采空档连接前后记录，不补写数据";
+"chart.network.help" = "下载在基线上方，上传在下方。孤立尖峰超出自适应线性量程时以三角标记，悬浮可查看原始速率。";
 "chart.network.label" = "最近两分钟网络数据速率曲线，蓝色下载在上，红色上传在下，上下行使用同一刻度";
 "chart.sampling_gap_hint" = "退出或睡眠期间停止采样，空档仅连接前后记录，不补写数据";
 "disk.available_prefix" = "可用 ";
@@ -93,7 +93,6 @@
 "update.action.download_installer" = "下载安装包";
 "update.action.install" = "立即更新";
 "update.action.later" = "稍后";
-"update.action.retry" = "重试更新";
 "update.current_version_format" = "当前版本：%@";
 "update.error.backup_location" = "原应用备份保存在：%@";
 "update.error.bundle_validation" = "安装包的签名、版本或架构验证失败，请从发布页重新下载。";
@@ -198,3 +197,19 @@
 "licenses.sections" = "许可文档";
 "licenses.copy" = "复制全文";
 "licenses.unavailable" = "无法读取应用内的许可文档，请重新安装 Neylu。";
+
+"menu_bar.density" = "间距";
+"menu_bar.density.compact" = "紧凑";
+"menu_bar.density.standard" = "标准";
+
+"chart.network.range_format" = "量程 %@";
+
+"disk.eject_busy_hint" = "请关闭磁盘中的文件及正在使用它的应用，然后再次尝试弹出。";
+
+"update.action.download_again" = "重新下载";
+"update.action.install_again" = "重试安装";
+"update.recovery.check" = "请重新检查版本信息，或前往下载页面。";
+"update.recovery.download" = "重试会重新下载安装包，并再次完成校验。";
+"update.recovery.install" = "可重试更新，或下载 DMG 手动安装。";
+
+"link.download_page" = "下载页面";

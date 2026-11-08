@@ -30,8 +30,10 @@ jobs:
         run: bash -n build.sh test.sh scripts/test-ci.sh scripts/sign-and-notarize.sh
       - name: Build
         run: ./build.sh
-      - name: Swift Testing
-        run: ./scripts/test-ci.sh
+      - name: Compile Swift Testing
+        run: ./scripts/test-ci.sh --compile-only
+      - name: Run Swift Testing
+        run: ./scripts/test-ci.sh --run-only
       - name: Verify bundle
         run: |
           codesign --verify --strict build/Neylu.app

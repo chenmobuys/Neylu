@@ -4,7 +4,7 @@
 <p align="center">A compact, native system monitor for the macOS menu bar.</p>
 
 [![CI](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml/badge.svg)](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases)](https://github.com/chenmobuys/Neylu/releases)
+[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases&sort=semver)](https://github.com/chenmobuys/Neylu/releases)
 [![MIT](https://img.shields.io/github/license/chenmobuys/Neylu)](LICENSE)
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-111827?logo=apple&logoColor=white)
 ![Apple Silicon and Intel](https://img.shields.io/badge/arch-arm64%20%7C%20x86__64-007AFF)
@@ -20,12 +20,12 @@ The preview uses demonstration readings. Native materials adapt to the system ap
 
 ## Features
 
-- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show and reorder metrics.
+- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show, reorder metrics, and select compact or standard spacing.
 - Live charts, CPU temperature on supported hardware, and disk capacity and read/write rates; monitor and eject external drives.
 - Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance. Login items use SMAppService on macOS 13+ and the legacy system API on macOS 12.
 - English and Simplified Chinese; configurable refresh intervals, decimal or binary units, and energy-saving options.
-- Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. No telemetry or monitoring-data uploads.
-- Built-in update checks, verified installers, and release notes after upgrades.
+- Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. Network charts mark peaks above the displayed range and show original upload/download rates on hover. No telemetry or monitoring-data uploads.
+- Built-in update checks, verified installers, contextual retry actions, and release notes after upgrades.
 
 ## Metric availability
 
@@ -37,7 +37,7 @@ Neylu adapts to the current macOS version, hardware, and accessible data sources
 
 ## Install
 
-Requires **macOS 12 or later**, on Apple Silicon or Intel. Latest downloads are listed in [GitHub Releases](https://github.com/chenmobuys/Neylu/releases).
+Requires **macOS 12 or later**, on Apple Silicon or Intel. The [download page](https://github.com/chenmobuys/Neylu/blob/updates/downloads.md) selects the latest installers by semantic version; [all releases](https://github.com/chenmobuys/Neylu/releases) remain available.
 
 ```sh
 brew install --cask chenmobuys/tap/neylu
@@ -47,7 +47,7 @@ Or download a DMG: choose `arm64` for Apple Silicon or `x86_64` for Intel, open 
 
 ## First launch
 
-The current Alpha is ad hoc signed and **not notarized by Apple**. If macOS blocks it, follow [Apple’s instructions](https://support.apple.com/102445) to choose **Open Anyway**. If you trust the downloaded Neylu, you can instead run:
+Current installers are ad hoc signed and **not notarized by Apple**. If macOS blocks it, follow [Apple’s instructions](https://support.apple.com/102445) to choose **Open Anyway**. If you trust the downloaded Neylu, you can instead run:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Neylu.app"
@@ -69,3 +69,5 @@ Use your actual installation path. This affects only Neylu; it does not disable 
 - [Build and contribution guide — Chinese](CONTRIBUTING.md)
 - [Release automation — Chinese](docs/RELEASING.md)
 - [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [MIT License](LICENSE) · [Attributions](THIRD_PARTY_NOTICES.md)
+
+[Compatibility validation and untested environments](docs/COMPATIBILITY.md)

@@ -25,6 +25,8 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     private let helpLabel = NSTextField(labelWithString: "")
     private let savedLabel = NSTextField(labelWithString: "")
     private let restore = NSButton()
+    private let densityLabel = NSTextField(labelWithString: "")
+    private let density = NSSegmentedControl()
     private var subscriptions = Set<AnyCancellable>()
     private var rowsHeight: NSLayoutConstraint!
     private var items: [MenuBarItem] { model.availableMenuBarItems }
@@ -79,6 +81,18 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             content.addSubview(preview)
             preview.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
         }
+        density.segmentCount = 2
+        density.trackingMode = .selectOne
+        density.segmentStyle = .rounded
+        density.controlSize = .small
+        density.target = self
+        density.action = #selector(changeDensity)
+        densityLabel.font = .systemFont(ofSize: 11)
+        let densityRow = NSStackView(views: [densityLabel, NSView(), density])
+        densityRow.orientation = .horizontal
+        densityRow.alignment = .centerY
+        stack.addArrangedSubview(densityRow)
+        densityRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         restore.target = self; restore.action = #selector(restoreLayout)
         restore.isBordered = false
         restore.font = .systemFont(ofSize: 11)
@@ -168,7 +182,11 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     private func refreshControls() {
         window?.title = L("menu_bar.title")
         restore.title = L("menu_bar.restore_layout")
-        restore.isEnabled = model.availableMenuBarItems != model.capabilities.items(.defaults)
+        restore.isEnabled = model.availableMenuBarItems != model.capabilities.items(.defaults) || model.settings.menuBarConfiguration.density != .compact
+        densityLabel.stringValue = L("menu_bar.density")
+        density.setAccessibilityLabel(L("menu_bar.density"))
+        for (index, option) in MenuBarDensity.allCases.enumerated() { density.setLabel(option.title, forSegment: index) }
+        density.selectedSegment = MenuBarDensity.allCases.firstIndex(of: model.settings.menuBarConfiguration.density) ?? 0
         previewLabel.stringValue = L("menu_bar.preview")
         sectionLabel.stringValue = L("menu_bar.visible_metrics")
         helpLabel.stringValue = L("menu_bar.drag_to_reorder") + " · ⌥↑↓"
@@ -190,6 +208,12 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))
         }
         refreshPreview()
+    }
+    @objc private func changeDensity() {
+        guard MenuBarDensity.allCases.indices.contains(density.selectedSegment) else { return }
+        var configuration = model.settings.menuBarConfiguration
+        configuration.density = MenuBarDensity.allCases[density.selectedSegment]
+        model.settings.menuBarConfiguration = configuration
     }
     func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {

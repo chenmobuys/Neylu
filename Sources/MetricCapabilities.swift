@@ -12,7 +12,7 @@ struct MetricCapabilities: Equatable {
                             gpuRenderer: false, gpuTiler: false, gpuCores: false, diskActivity: false)
     func supports(_ metric: MenuBarMetric) -> Bool { menuMetrics.contains(metric) }
     func configuration(_ saved: MenuBarConfiguration) -> MenuBarConfiguration {
-        MenuBarConfiguration(items: saved.items.map { MenuBarItem(metric: $0.metric, enabled: $0.enabled && supports($0.metric)) })
+        MenuBarConfiguration(items: saved.items.map { MenuBarItem(metric: $0.metric, enabled: $0.enabled && supports($0.metric)) }, density: saved.density)
     }
     func moving(_ metric: MenuBarMetric, to visibleRow: Int, in saved: MenuBarConfiguration) -> MenuBarConfiguration {
         let visible = items(saved)

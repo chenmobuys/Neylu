@@ -14,7 +14,7 @@ Automatic checks run once a day by default. An update adds a dot to the settings
 
 ## First-launch or updater warnings
 
-The current Alpha is not notarized by Apple. After confirming that the installer came from this repository and that you trust the release, follow [Apple’s instructions](https://support.apple.com/102445) to allow it through **System Settings → Privacy & Security → Open Anyway**.
+Current installers are not notarized by Apple. After confirming that the installer came from this repository and that you trust the release, follow [Apple’s instructions](https://support.apple.com/102445) to allow it through **System Settings → Privacy & Security → Open Anyway**.
 
 You can also remove Neylu’s download-quarantine attribute manually:
 
@@ -36,7 +36,7 @@ Installers are hosted on GitHub Releases. The release workflow verifies their di
 
 **Update Now** quits Neylu normally, replaces it, and relaunches it. Replacement failures, failed launch requests, or exit during the short startup observation period restore the previous installation. History and preferences live outside the app bundle and are preserved. When running from a DMG, under App Translocation, or from a location that cannot be replaced safely, Neylu opens the verified DMG for manual installation without requesting administrator privileges.
 
-These checks do not replace Apple notarization. Preview releases still rely on this repository’s GitHub HTTPS distribution channel for publisher trust. To verify a manual download, compare the output below with the SHA-256 digest beside the matching release asset:
+These checks do not replace Apple notarization. Ad hoc releases, including any explicitly disclosed stable release, rely on this repository’s GitHub HTTPS distribution channel for publisher trust. To verify a manual download, compare the output below with the SHA-256 digest beside the matching release asset:
 
 ```sh
 shasum -a 256 ~/Downloads/Neylu-*.dmg
@@ -67,3 +67,11 @@ Click any chart to pin the time range and readouts across all four charts. Backg
 The eye button beside the IP address in the overview masks both the address and its tooltip; click it again to reveal them. This preference persists across launches; copied diagnostics always exclude the IP address.
 
 In **Preferences → Global Shortcut…**, click the recording field, press a combination containing Control, Option, or Command–Shift, and click Save to show or hide the overview. Save remains disabled until a valid combination is recorded. No shortcut is assigned by default. You can remove it at any time; registration failures preserve the previous shortcut. Shortcuts use physical key positions; after changing keyboard layouts, remove and re-record the shortcut to update its displayed name. Registration uses the system hotkey API, without Accessibility permission or a global keyboard event monitor.
+
+## Failures and retries
+
+Invalid release information prompts a fresh check. Network interruptions, checksum failures, and app validation failures offer a new download with full verification. Installation or launch failures offer another installation attempt or a DMG from the download page. Failed verification never reuses an untrusted installer.
+
+Closing or cancelling the update window invalidates old callbacks, and reopening it starts a fresh check. Each attempt owns a separate private directory with mode 0700; failure or cancellation cleans only that attempt after background preparation stops. Files handed to the verified updater are owned by the helper; a verified DMG opened in Finder remains available for manual installation. A still-mounted image is neither recursively deleted nor forcibly detached.
+
+The [download page](https://github.com/chenmobuys/Neylu/blob/updates/downloads.md) selects the latest published installer pair by semantic version and shows each architecture's system requirement, independent of GitHub list order.

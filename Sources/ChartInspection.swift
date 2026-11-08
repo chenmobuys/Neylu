@@ -3,6 +3,7 @@ import SwiftUI
 struct ChartReadout {
     let timestamp: Date
     let value: String
+    var secondaryValue: String? = nil
     static func nearest<T>(_ points: [T], at date: Date?, timestamp: KeyPath<T, Date>, window: HistoryWindow? = nil) -> T? {
         guard let date else { return nil }
         let visible = points.filter { point in
@@ -27,9 +28,9 @@ struct ChartReadout {
         guard let p = nearest(points, at: date, timestamp: \.timestamp, window: window) else { return nil }
         return Self(timestamp: p.timestamp, value: "\(formattedMemory(p.used, basis: basis)) / \(formattedMemory(p.total, basis: basis))")
     }
-    static func network(_ points: [NetworkPoint], at date: Date?, basis: UnitBasis, window: HistoryWindow? = nil) -> Self? {
+    static func network(_ points: [NetworkPoint], at date: Date?, basis: UnitBasis, window: HistoryWindow? = nil, language: AppLanguage = AppLanguage.load()) -> Self? {
         guard let p = nearest(points, at: date, timestamp: \.timestamp, window: window) else { return nil }
-        return Self(timestamp: p.timestamp, value: "↓ \(formattedRate(p.download, basis: basis)) · ↑ \(formattedRate(p.upload, basis: basis))")
+        return Self(timestamp: p.timestamp, value: "↓ " + L10n.text("metrics.download", language: language) + " " + formattedRate(p.download, basis: basis), secondaryValue: "↑ " + L10n.text("metrics.upload", language: language) + " " + formattedRate(p.upload, basis: basis))
     }
 }
 
@@ -64,7 +65,7 @@ struct ChartTooltipLayout {
     static func width(for readout: ChartReadout, container: CGFloat) -> CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
         let time = readout.timestamp.formatted(date: .omitted, time: .standard)
-        let text = [time, readout.value].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        let text = [time, readout.value, readout.secondaryValue ?? ""].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         return min(max(0, container), ceil(text) + 8)
     }
 }
@@ -97,6 +98,7 @@ private struct ChartInspectionModifier: ViewModifier {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(readout.timestamp.formatted(date: .omitted, time: .standard))
                             Text(readout.value)
+                            if let second = readout.secondaryValue { Text(second) }
                         }
                         .font(.system(size: 9)).monospacedDigit()
                         .frame(width: max(0, ChartTooltipLayout.width(for: readout, container: geometry.size.width) - 8), alignment: .leading)

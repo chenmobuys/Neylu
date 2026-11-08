@@ -19,6 +19,7 @@ jobs:
     outputs:
       channel: ${{ steps.metadata.outputs.channel }}
       version: ${{ steps.metadata.outputs.version }}
+      distribution: ${{ steps.metadata.outputs.distribution }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,6 +31,7 @@ jobs:
         run: |
           channel="$(python3 scripts/release.py validate --tag "$RELEASE_TAG")"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "distribution=$(python3 scripts/release.py distribution --tag "$RELEASE_TAG")" >> "$GITHUB_OUTPUT"
           echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
           git show-ref --verify "refs/tags/$RELEASE_TAG"
   build:
@@ -47,6 +49,7 @@ jobs:
     environment: release
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      DISTRIBUTION_MODE: ${{ needs.prepare.outputs.distribution }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,10 +57,12 @@ jobs:
           persist-credentials: false
       - name: Build app on native architecture
         run: ./build.sh
-      - name: Compile and run Swift Testing
-        run: ./scripts/test-ci.sh
-      - name: Sign and notarize stable app
-        if: needs.prepare.outputs.channel == 'stable'
+      - name: Compile Swift Testing
+        run: ./scripts/test-ci.sh --compile-only
+      - name: Run Swift Testing
+        run: ./scripts/test-ci.sh --run-only
+      - name: Sign and notarize app
+        if: needs.prepare.outputs.distribution == 'notarized'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -69,9 +74,9 @@ jobs:
       - name: Create DMG with Applications shortcut
         env:
           RELEASE_ARCH: ${{ matrix.arch }}
-        run: python3 scripts/release.py package --tag "$RELEASE_TAG" --arch "$RELEASE_ARCH" --app build/Neylu.app --output dist
-      - name: Sign and notarize stable installer
-        if: needs.prepare.outputs.channel == 'stable'
+        run: python3 scripts/release.py package --tag "$RELEASE_TAG" --arch "$RELEASE_ARCH" --app build/Neylu.app --output dist --distribution "$DISTRIBUTION_MODE"
+      - name: Sign and notarize installer
+        if: needs.prepare.outputs.distribution == 'notarized'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -113,6 +118,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           CHANNEL: ${{ needs.prepare.outputs.channel }}
+          DISTRIBUTION_MODE: ${{ needs.prepare.outputs.distribution }}
         run: |
           python3 scripts/release.py verify-assets --tag "$RELEASE_TAG" --output dist
           mkdir -p .build
@@ -126,7 +132,9 @@ jobs:
           else
             flags=()
             if [ "$CHANNEL" = preview ]; then flags+=(--prerelease); fi
-            gh release create "$RELEASE_TAG" --verify-tag --title "Neylu $RELEASE_TAG" \
+            title="Neylu $RELEASE_TAG"
+            if [ "$DISTRIBUTION_MODE" = adhoc ]; then title="$title (Not notarized)"; fi
+            gh release create "$RELEASE_TAG" --verify-tag --title "$title" \
               --notes-file .build/release-notes.md "${flags[@]}" dist/*.dmg
           fi
           gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > .build/published-release.json

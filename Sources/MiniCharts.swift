@@ -28,14 +28,32 @@ struct MemoryChart: View {
     }
 }
 
+// A linear, explicitly bounded range keeps isolated historical spikes from
+// flattening normal traffic. Clipped peaks are marked; samples stay unchanged.
+struct NetworkChartScale: Equatable {
+    let maximum: Double
+    let hasClippedPeaks: Bool
+    init(points: [NetworkPoint]) {
+        let rates = points.flatMap { [$0.download, $0.upload] }.filter { $0.isFinite && $0 >= 0 }.sorted()
+        let peak = rates.last ?? 0
+        let typical = rates.isEmpty ? 0 : rates[min(rates.count - 1, Int(Double(rates.count - 1) * 0.9))]
+        let ceiling = points.count >= 20 ? min(peak, max(1_024, typical * 3)) : peak
+        maximum = max(1, ceiling) * 1.1
+        hasClippedPeaks = peak > maximum
+    }
+    func fraction(_ value: Double) -> Double { value.isFinite ? min(1, max(0, value / maximum)) : 0 }
+}
+
 struct NetworkChart: View {
     let points: [NetworkPoint]
     let window: HistoryWindow
     var language = AppLanguage.load()
+    var basis: UnitBasis = .decimal
+    var scale: NetworkChartScale? = nil
     var body: some View {
+        let range = scale ?? NetworkChartScale(points: points)
         Canvas { context, size in
             let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end, duration: window.maximumDuration)
-            let maximum = max(1, segments.flatMap { $0 }.map { max($0.download, $0.upload) }.max() ?? 1) * 1.1
             let middle = size.height / 2
             var baseline = Path()
             baseline.move(to: CGPoint(x: 0, y: middle))
@@ -47,8 +65,18 @@ struct NetworkChart: View {
                 for (key, direction, color) in series {
                     var line = Path()
                     for (index, point) in segment.enumerated() {
-                        let position = CGPoint(x: size.width * window.fraction(point.timestamp), y: middle + direction * max(0, point[keyPath: key]) / maximum * (middle - 1))
+                        let position = CGPoint(x: size.width * window.fraction(point.timestamp), y: middle + direction * range.fraction(point[keyPath: key]) * (middle - 1))
                         if index == 0 { line.move(to: position) } else { line.addLine(to: position) }
+                        if point[keyPath: key] > range.maximum && (index == 0 || segment[index - 1][keyPath: key] <= range.maximum) {
+                            let x = min(max(3, position.x), max(3, size.width - 3))
+                            let edge: CGFloat = direction < 0 ? 0 : size.height
+                            var marker = Path()
+                            marker.move(to: CGPoint(x: x, y: edge))
+                            marker.addLine(to: CGPoint(x: x - 3, y: edge - direction * 4))
+                            marker.addLine(to: CGPoint(x: x + 3, y: edge - direction * 4))
+                            marker.closeSubpath()
+                            context.fill(marker, with: .color(color))
+                        }
                     }
                     var area = line
                     area.addLine(to: CGPoint(x: size.width * window.fraction(last.timestamp), y: middle))
@@ -60,6 +88,12 @@ struct NetworkChart: View {
             }
         }
         .clipped()
+        .overlay(alignment: .topTrailing) {
+            if range.hasClippedPeaks {
+                Text(String(format: L10n.text("chart.network.range_format", language: language), formattedRate(range.maximum, basis: basis)))
+                    .font(.system(size: 8)).foregroundStyle(.secondary).allowsHitTesting(false)
+            }
+        }
         .accessibilityLabel(L10n.text("chart.network.label", language: language))
         .help(L10n.text("chart.network.help", language: language))
     }

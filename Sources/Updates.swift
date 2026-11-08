@@ -112,8 +112,17 @@ final class UpdateController: NSObject, NSWindowDelegate {
     private var task: Task<Void, Never>?
     private var available: AvailableUpdate?
     private var working = false
-    private var temporary: URL?
-    private let current = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String ?? ""
+    private var attempts = UpdateAttemptGate()
+    private let lookup: (ReleaseVersion, String) async throws -> AvailableUpdate?
+    private let current: String
+    init(current: String = Bundle.main.object(forInfoDictionaryKey: "NeyluReleaseVersion") as? String ?? "",
+         lookup: @escaping (ReleaseVersion, String) async throws -> AvailableUpdate? = { version, architecture in
+             try await UpdateDiscovery.find(current: version, architecture: architecture, forceRefresh: true)
+         }) {
+        self.current = current
+        self.lookup = lookup
+        super.init()
+    }
     #if arch(arm64)
     nonisolated static let architecture = "arm64"
     #else
@@ -181,7 +190,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         secondary.target = self; secondary.action = #selector(performSecondary)
         secondary.bezelStyle = .rounded
         secondary.keyEquivalent = "\u{1b}"
-        website.title = L("link.github_releases")
+        website.title = available == nil ? L("link.download_page") : L("link.github_releases")
         website.target = self; website.action = #selector(openReleases)
         website.isBordered = false
         website.font = .systemFont(ofSize: 11)
@@ -221,17 +230,17 @@ final class UpdateController: NSObject, NSWindowDelegate {
     func refreshLanguage() {
         guard window != nil else { return }
         window?.title = L("update.title")
-        website.title = L("link.github_releases")
+        website.title = available == nil ? L("link.download_page") : L("link.github_releases")
         status.stringValue = messageArgument.map { String(format: L(messageKey), $0) } ?? L(messageKey)
         if let failure {
-            subtitle.stringValue = UpdateFailure.describe(failure, language: AppLanguage.load())
+            subtitle.stringValue = UpdateFailure.describe(failure, language: AppLanguage.load()) + "\n" + L(UpdateRecovery.action(for: failure, hasUpdate: available != nil).hintKey)
         } else if manualInstallation {
             subtitle.stringValue = L("update.manual_install_hint")
         } else { subtitle.stringValue = String(format: L("update.current_version_format"), current) }
         action.isHidden = working || manualInstallation
         secondary.isHidden = upToDate
         if upToDate { action.title = L("action.ok") }
-        else if failure != nil { action.title = available == nil ? L("update.action.check_again") : L("update.action.retry") }
+        else if failure != nil { action.title = L(UpdateRecovery.action(for: failure!, hasUpdate: available != nil).titleKey) }
         else if available != nil { action.title = UpdateFiles.canReplace(Bundle.main.bundleURL) ? L("update.action.install") : L("update.action.download_installer") }
         else { action.title = L("update.action.check_again") }
         secondary.title = working ? L("action.cancel") : (manualInstallation ? L("action.ok") : (available != nil && failure == nil ? L("update.action.later") : L("action.close")))
@@ -251,6 +260,8 @@ final class UpdateController: NSObject, NSWindowDelegate {
         refreshLanguage()
     }
     private func check() {
+        task?.cancel()
+        let token = attempts.begin()
         available = nil
         upToDate = false
         failure = nil
@@ -260,7 +271,10 @@ final class UpdateController: NSObject, NSWindowDelegate {
         task = Task {
             do {
                 guard let version = ReleaseVersion(current) else { throw UpdateFailure.metadata }
-                available = try await UpdateDiscovery.find(current: version, architecture: Self.architecture, forceRefresh: true)
+                let result = try await lookup(version, Self.architecture)
+                try Task.checkCancellation()
+                guard attempts.accepts(token) else { return }
+                available = result
                 onDiscovery?(available)
                 if let update = available {
                     setWorking(false, message: "update.status.available_format", argument: update.version.text)
@@ -270,70 +284,89 @@ final class UpdateController: NSObject, NSWindowDelegate {
                     setWorking(false, message: "update.status.up_to_date")
                 }
                 fitWindow()
-            } catch { failed(error) }
+            } catch { if attempts.accepts(token) { failed(error) } }
         }
     }
     @objc private func openReleases() {
-        NSWorkspace.shared.open(available?.page ?? URL(string: AvailableUpdate.repository + "/releases")!)
+        NSWorkspace.shared.open(available?.page ?? URL(string: AvailableUpdate.repository + "/blob/updates/downloads.md")!)
     }
     @objc private func performAction() {
         if upToDate { window?.close() }
+        else if let failure, UpdateRecovery.action(for: failure, hasUpdate: available != nil) == .check { check() }
         else if let update = available { install(update) } else { check() }
     }
     @objc private func performSecondary() {
-        task?.cancel()
         window?.close()
     }
-    func windowWillClose(_ notification: Notification) { task?.cancel() }
+    func windowWillClose(_ notification: Notification) {
+        attempts.cancel()
+        task?.cancel()
+        task = nil
+        working = false
+    }
     private func failed(_ error: Error) {
         failure = error
         setWorking(false, message: "update.status.failed")
         scroll.isHidden = true
-        temporary.map { try? FileManager.default.removeItem(at: $0) }
-        temporary = nil
         fitWindow()
     }
     private func install(_ update: AvailableUpdate) {
+        task?.cancel()
+        let token = attempts.begin()
         failure = nil
         manualInstallation = false
         scroll.isHidden = true
         setWorking(true, message: "update.status.downloading")
         task = Task { [self] in
+            var preparedStage: URL?
+            var updaterProcess: Process?
+            defer {
+                if let process = updaterProcess, process.isRunning { process.terminate() }
+                if let stage = preparedStage { try? FileManager.default.removeItem(at: stage) }
+            }
             do {
-                let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Neylu-update-" + UUID().uuidString)
-                temporary = folder
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+                let workspace = try UpdateWorkspace()
+                let folder = workspace.directory
+                // Retain the workspace until all detached preparation has stopped.
+                defer { withExtendedLifetime(workspace) {} }
                 let package = folder.appendingPathComponent(update.filename)
                 try await UpdateDownload(destination: package, limit: update.size, progress: { [weak owner = self] fraction in
                     DispatchQueue.main.async {
-                        owner?.progress.isIndeterminate = false
-                        owner?.progress.doubleValue = fraction
+                        guard let owner, owner.attempts.accepts(token) else { return }
+                        owner.progress.isIndeterminate = false
+                        owner.progress.doubleValue = fraction
                     }
                 }).fetch(update.package)
                 try Task.checkCancellation()
+                guard attempts.accepts(token) else { return }
                 setWorking(true, message: "update.status.preparing")
                 // Hashing, mounting, copying and code validation never block UI sampling.
                 let target = Bundle.main.bundleURL
-                let prepared = try await Task.detached { () -> URL? in
+                let preparation = Task.detached { () -> URL? in
+                    try Task.checkCancellation()
                     try update.verify(package: package)
+                    try Task.checkCancellation()
                     guard UpdateFiles.canReplace(target) else { return nil }
                     return try Self.prepare(update, package: package, target: target, folder: folder)
-                }.value
-                if Task.isCancelled {
-                    if let prepared { try? FileManager.default.removeItem(at: prepared) }
-                    throw CancellationError()
                 }
+                let prepared = try await withTaskCancellationHandler(operation: {
+                    try await preparation.value
+                }, onCancel: { preparation.cancel() })
+                preparedStage = prepared
+                try Task.checkCancellation()
+                guard attempts.accepts(token) else { return }
                 guard let stage = prepared else {
                     guard NSWorkspace.shared.open(package) else { throw UpdateFailure.operation }
                     manualInstallation = true
                     setWorking(false, message: "update.status.manual_install")
                     // Finder needs the DMG after this window closes. Only the
                     // verified package remains in the system temporary folder.
-                    temporary = nil
+                    workspace.transferOwnership()
                     fitWindow()
                     return
                 }
                 let process = Process()
+                updaterProcess = process
                 process.executableURL = stage.appendingPathComponent("NeyluUpdater")
                 process.arguments = [target.path, String(ProcessInfo.processInfo.processIdentifier), update.version.text,
                                      Self.architecture, folder.path, AppLanguage.load().resolved().rawValue]
@@ -350,21 +383,29 @@ final class UpdateController: NSObject, NSWindowDelegate {
                     try? FileManager.default.removeItem(at: stage)
                     throw UpdateFailure.operation
                 }
-                temporary = nil // Installer owns cleanup from here on.
+                try Task.checkCancellation()
+                guard attempts.accepts(token) else { process.terminate(); return }
+                workspace.transferOwnership() // The verified helper owns cleanup now.
+                preparedStage = nil
+                updaterProcess = nil
                 NSApp.terminate(nil) // Normal termination flushes history first.
-            } catch { failed(error) }
+            } catch { if attempts.accepts(token) { failed(error) } }
         }
     }
     nonisolated private static func prepare(_ update: AvailableUpdate, package: URL, target: URL, folder: URL) throws -> URL {
+        try Task.checkCancellation()
         let mount = folder.appendingPathComponent("mount")
         try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: false)
         try UpdateFiles.run("/usr/bin/hdiutil", ["attach", "-readonly", "-nobrowse", "-mountpoint", mount.path, package.path])
-        defer { _ = try? UpdateFiles.run("/usr/bin/hdiutil", ["detach", mount.path]) }
+        var attached = true
+        defer { if attached { try? UpdateMount.detach(at: mount) } }
+        try Task.checkCancellation()
         let stage = target.deletingLastPathComponent().appendingPathComponent(".Neylu-update-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: stage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         do {
             let candidate = stage.appendingPathComponent("Neylu.app")
             try UpdateFiles.run("/usr/bin/ditto", [mount.appendingPathComponent("Neylu.app").path, candidate.path])
+            try Task.checkCancellation()
             try UpdateFiles.validate(candidate, version: update.version, architecture: architecture, requiredTeam: UpdateFiles.signingTeam(target))
             let resources = stage.appendingPathComponent("Resources", isDirectory: true)
             try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: false)
@@ -374,6 +415,9 @@ final class UpdateController: NSObject, NSWindowDelegate {
             }
             // Copy the currently trusted helper, never a helper from the download.
             _ = try UpdateFiles.stageUpdater(from: target, in: stage)
+            try Task.checkCancellation()
+            try UpdateMount.detach(at: mount)
+            attached = false
             return stage
         } catch { try? FileManager.default.removeItem(at: stage); throw error }
     }

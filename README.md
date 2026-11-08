@@ -4,7 +4,7 @@
 <p align="center">安静、紧凑的原生 macOS 菜单栏监控工具。</p>
 
 [![CI](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml/badge.svg)](https://github.com/chenmobuys/Neylu/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases)](https://github.com/chenmobuys/Neylu/releases)
+[![Release](https://img.shields.io/github/v/release/chenmobuys/Neylu?include_prereleases&sort=semver)](https://github.com/chenmobuys/Neylu/releases)
 [![MIT](https://img.shields.io/github/license/chenmobuys/Neylu)](LICENSE)
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-111827?logo=apple&logoColor=white)
 ![Apple Silicon and Intel](https://img.shields.io/badge/arch-arm64%20%7C%20x86__64-007AFF)
@@ -20,12 +20,12 @@
 
 ## 功能
 
-- 网速、内存、GPU、CPU 与系统盘指标合为一个菜单栏项目，可选择显示内容并排序。
+- 网速、内存、GPU、CPU 与系统盘指标合为一个菜单栏项目，可选择显示内容并排序，提供紧凑／标准间距。
 - 实时图表、受支持硬件的 CPU 温度、磁盘容量与读写速度；支持外接磁盘监控和弹出。
 - macOS 26+ 使用系统玻璃，更早版本使用系统材质；支持自动、浅色、深色外观。开机启动在 macOS 13+ 使用 SMAppService，macOS 12 使用系统兼容接口。
 - 简体中文与英文；可调整刷新间隔、十进制或二进制单位，并选择省电模式。
-- 本机保留 24 小时历史，图表可切换两分钟、十五分钟或一小时，并固定历史读数；无遥测，不上传监控数据。
-- 内置更新检查、安装包校验和升级后的更新说明。
+- 本机保留 24 小时历史，图表可切换两分钟、十五分钟或一小时，并固定历史读数；网络图表标记超量程尖峰，悬浮显示原始上传／下载速率；无遥测，不上传监控数据。
+- 内置更新检查、安装包校验、失败分类重试和升级后的更新说明。
 
 ## 指标可用性
 
@@ -37,7 +37,7 @@ Neylu 根据当前 macOS、硬件及可访问的数据源自动显示指标。�
 
 ## 安装
 
-支持 **macOS 12 及以上**，兼容 Apple Silicon 与 Intel。最新安装包见 [GitHub Releases](https://github.com/chenmobuys/Neylu/releases)。
+支持 **macOS 12 及以上**，兼容 Apple Silicon 与 Intel。最新安装包见[下载页面](https://github.com/chenmobuys/Neylu/blob/updates/downloads.md)，按语义版本排列；[全部发布](https://github.com/chenmobuys/Neylu/releases)保留历史版本。
 
 ```sh
 brew install --cask chenmobuys/tap/neylu
@@ -47,7 +47,7 @@ brew install --cask chenmobuys/tap/neylu
 
 ## 首次打开
 
-当前 Alpha 仅 ad-hoc 签名，**未经 Apple 公证**。若被 macOS 拦截，可按 [Apple 官方步骤](https://support.apple.com/zh-cn/102445)选择「仍要打开」；确认信任下载的 Neylu 后，也可执行：
+当前发行包仅 ad-hoc 签名，**未经 Apple 公证**。若被 macOS 拦截，可按 [Apple 官方步骤](https://support.apple.com/zh-cn/102445)选择「仍要打开」；确认信任下载的 Neylu 后，也可执行：
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Neylu.app"
@@ -69,3 +69,5 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 - [构建与贡献指南](CONTRIBUTING.md)
 - [发布自动化](docs/RELEASING.md)
 - [更新记录](CHANGELOG.md) · [安全反馈](SECURITY.md) · [MIT 许可](LICENSE) · [第三方致谢](THIRD_PARTY_NOTICES.md)
+
+[兼容性验收与未实测范围](docs/COMPATIBILITY.md)

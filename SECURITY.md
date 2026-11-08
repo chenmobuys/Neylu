@@ -4,7 +4,7 @@
 
 维护最新发布版本。监控读数保存在本机，无遥测，不上传数据，不要求管理员权限。默认每天检查一次静态 appcast，可关闭；手动检查与下载安装包也会访问 GitHub 静态内容及 HTTPS 附件服务。客户端不请求 GitHub REST API，不需要账号或 Token。
 
-更新器验证 SHA-256、代码签名、应用标识、完整版本、架构和最低系统要求；已有 Developer ID 的安装还约束 Apple 签名链与 Team ID。当前预发布版仅 ad-hoc 签名、未经 Apple 公证，更新来源信任依赖本仓库的 GitHub HTTPS 渠道；摘要不替代发布者身份认证。正式版发布流程要求 Developer ID 与公证，不代表当前已有正式签名版本。
+更新器验证 SHA-256、代码签名、应用标识、完整版本、架构和最低系统要求；已有 Developer ID 的安装还约束 Apple 签名链与 Team ID。当前发行包仅 ad-hoc 签名、未经 Apple 公证，更新来源信任依赖本仓库的 GitHub HTTPS 渠道；摘要不替代发布者身份认证。发行通道与公证状态独立：DISTRIBUTION=adhoc 允许明确标注的未公证正式版；DISTRIBUTION=notarized 强制 Developer ID、公证与 Gatekeeper 验证，失败即中止，不降级。
 
 安装包、Homebrew 和发布自动化不关闭 Gatekeeper/SIP、不自动删除安装 App 的隔离标记。alpha.6 起，用户确认更新后，验证已安装 App 及其复制后的辅助程序，只处理私有暂存辅助程序副本的隔离标记，不修改来源 App、下载候选应用或其他元数据。首次打开是否允许未经公证的软件由用户决定，见[更新与排错](docs/UPDATING.md)。
 
@@ -18,7 +18,7 @@ IP 隐藏同时应用于详情文字和悬浮提示，辅助功能不会额外�
 
 The latest published release is maintained. Monitoring data stays local, with no telemetry, uploads, or administrator privileges. Static appcast checks run daily by default and can be disabled. Manual checks and installer downloads also use GitHub’s static content and HTTPS asset services. The client does not use the GitHub REST API or require an account or token.
 
-The updater validates SHA-256, code signatures, app identifier, full version, architecture, and minimum macOS requirement. An existing Developer ID installation also enforces the Apple signing chain and Team ID. Current previews are ad hoc signed and not notarized. Publisher trust relies on this repository’s GitHub HTTPS channel; digests do not establish publisher identity. Stable-release automation requires Developer ID signing and notarization, but no current preview should be described as notarized.
+The updater validates SHA-256, code signatures, app identifier, full version, architecture, and minimum macOS requirement. An existing Developer ID installation also enforces the Apple signing chain and Team ID. Current installers are ad hoc signed and not notarized. Publisher trust relies on this repository’s GitHub HTTPS channel; digests do not establish publisher identity. Release channels and notarization are independent: DISTRIBUTION=adhoc permits explicitly disclosed unnotarized stable releases; DISTRIBUTION=notarized requires Developer ID signing, notarization, and Gatekeeper verification. Failure aborts distribution without a fallback.
 
 Installers, Homebrew, and release automation do not disable Gatekeeper/SIP or automatically clear quarantine on the installed app. Since alpha.6, after the user requests an update, the installed app and copied helper are verified before quarantine is removed only from that private helper copy. The source app, downloaded candidate, and unrelated metadata remain unchanged. Users decide whether to allow an unnotarized first launch; see [updating and troubleshooting](docs/UPDATING.en.md).
 

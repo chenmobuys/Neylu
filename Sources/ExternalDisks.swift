@@ -26,11 +26,18 @@ func isExternalHardware(internalDevice: Bool?, network: Bool, protocolName: Stri
 
 final class ExternalDiskMonitor {
     private var volumes: [MountedExternalDisk] = []
+    private var volumeOrder: [String] = []
     private var readers: [String: DiskActivityReader] = [:]
     private var nextDiscovery: TimeInterval = 0
     private let discoverVolumes: () -> [MountedExternalDisk]
     init(discover: @escaping () -> [MountedExternalDisk] = ExternalDiskMonitor.discover) { discoverVolumes = discover }
 
+    static func stableOrder(previous: [String], current: [String]) -> [String] {
+        let present = Set(current)
+        let kept = previous.filter { present.contains($0) }
+        let known = Set(kept)
+        return kept + current.filter { !known.contains($0) }
+    }
     func invalidate() {
         nextDiscovery = 0
         volumes.removeAll()
@@ -42,6 +49,9 @@ final class ExternalDiskMonitor {
             nextDiscovery = now + 10
             volumes = discoverVolumes()
             let ids = Set(volumes.map { $0.reading.id })
+            volumeOrder = Self.stableOrder(previous: volumeOrder, current: volumes.map { $0.reading.id })
+            let positions = Dictionary(uniqueKeysWithValues: volumeOrder.enumerated().map { ($0.element, $0.offset) })
+            volumes.sort { positions[$0.reading.id, default: 0] < positions[$1.reading.id, default: 0] }
             readers = readers.filter { ids.contains($0.key) }
         }
         return volumes.map { volume in

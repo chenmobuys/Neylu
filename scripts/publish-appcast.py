@@ -33,7 +33,40 @@ class GitHub:
             raise RuntimeError(f'GitHub appcast publication failed: HTTP {error.code}') from None
 
 
+def download_index(files):
+    feeds = {arch: appcast.read_items(files[f'appcast-{arch}.xml'], arch) for arch in ('arm64', 'x86_64')}
+    complete = set(feeds['arm64']) & set(feeds['x86_64'])
+    if not complete:
+        raise ValueError('No complete installer pair is available')
+    lines = ['# 下载 Neylu / Download Neylu', '',
+             '按语义版本自动选择两种架构均可用的最新版本，不依赖 GitHub 发布列表顺序。',
+             'Automatically selects the latest complete release by semantic version, independent of GitHub list order.', '']
+    for preview, heading in [(False, '最新正式版 / Latest Stable'), (True, '最新测试版 / Latest Preview')]:
+        versions = [v for v in complete if ('-' in v) == preview]
+        if not versions:
+            continue
+        version = max(versions, key=appcast.version_key)
+        page = f'{appcast.REPOSITORY}/releases/tag/v{version}'
+        lines += [f'## {heading}', '', f'**[{version}]({page})**', '']
+        links = []
+        for arch, label in [('arm64', 'Apple Silicon'), ('x86_64', 'Intel')]:
+            item = feeds[arch][version]
+            url = item.find('enclosure').get('url')
+            minimum = appcast.field(item, appcast.tag(appcast.SPARKLE, 'minimumSystemVersion')).split('.')
+            while len(minimum) > 1 and minimum[-1] == '0': minimum.pop()
+            minimum = '.'.join(minimum)
+            links.append(f'[{label} · DMG · macOS {minimum}+]({url})')
+        notarized = all('<!-- neylu-distribution: notarized -->' in appcast.field(feeds[a][version], 'description') for a in feeds)
+        disclosure = ('Developer ID signed and notarized by Apple / 已通过 Apple 公证' if notarized else 'Ad hoc signed; not notarized by Apple / 仅 ad-hoc 签名，未经 Apple 公证')
+        lines += [' · '.join(links), '', disclosure, '']
+    lines += [f'[首次打开与安装说明 / Installation and first launch]({appcast.REPOSITORY}#readme)', '',
+              f'[全部发布与更新说明 / All releases and release notes]({appcast.REPOSITORY}/releases)', '']
+    return '\n'.join(lines).encode('utf-8')
+
+
 def publish(api, items):
+    if set(items) != {'arm64', 'x86_64'}:
+        raise ValueError('Both architecture feeds are required')
     ref = api('GET', 'git/ref/heads/updates')
     parent = ref['object']['sha'] if ref else None
     base_tree = api('GET', 'git/commits/' + parent)['tree']['sha'] if parent else None
@@ -52,6 +85,12 @@ def publish(api, items):
             old = None
         files[name] = appcast.merge(old, item, arch)
         changed = changed or files[name] != old
+    files['downloads.md'] = download_index(files)
+    old_index = api('GET', 'contents/downloads.md?ref=' + parent) if parent else None
+    if old_index and (old_index.get('type') != 'file' or old_index.get('size', appcast.LIMIT + 1) > appcast.LIMIT):
+        raise ValueError('Invalid existing download index')
+    old_index_data = base64.b64decode(old_index['content']) if old_index else None
+    changed = changed or files['downloads.md'] != old_index_data
     if not changed:
         print('Appcast is already up to date')
         return parent
