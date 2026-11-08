@@ -132,7 +132,7 @@
 "whats_new.unavailable" = "暂无本地更新说明，请查看完整更新日志。";
 "menu.automatic_updates" = "自动检查更新";
 "menu.update_available_format" = "发现新版本 %@…";
-"chart.inspect_hint" = "悬浮查看实际采样值，或聚焦后使用左右方向键。";
+"chart.inspect_hint" = "悬浮查看实际采样值，或聚焦后使用左右方向键；点击可固定图表，再次点击恢复实时。";
 "menu.preferences" = "偏好设置";
 "login.change_failed" = "无法修改开机启动设置，请将 Neylu 移入“应用程序”后重试。";
 "login.approval_hint" = "请在系统设置 → 通用 → 登录项中允许 Neylu。";
@@ -171,3 +171,22 @@
 "diagnostics.privacy" = "不包含 IP、网卡名、磁盘名、本机路径、日志或监控数值。";
 
 "energy.hint" = "生效时后台采样间隔至少为 5 秒；打开详情恢复设定的刷新间隔。";
+
+"chart.resume_live" = "恢复实时图表";
+"chart.toggle_pin" = "固定或恢复图表";
+"privacy.address_hidden" = "IP 地址已隐藏";
+"privacy.toggle_address" = "显示或隐藏 IP 地址";
+"privacy.hide_address" = "隐藏 IP 地址";
+"format.memory" = "内存显示";
+"format.network" = "网速单位";
+"format.percent" = "使用率";
+"format.capacity" = "已用容量";
+"format.bytes" = "字节每秒 · B/s";
+"format.bits" = "比特每秒 · bit/s";
+"menu_bar.restore_layout" = "恢复默认布局";
+"shortcut.title" = "全局快捷键";
+"shortcut.configure" = "全局快捷键…";
+"shortcut.hint" = "按下包含 Control 或 Option 的组合键，用于打开或关闭详情。快捷键按物理键位保存。";
+"shortcut.remove" = "移除快捷键";
+"shortcut.record" = "按下组合键";
+"shortcut.unavailable" = "无法注册此快捷键，请选择其他组合。";

@@ -132,7 +132,7 @@
 "whats_new.unavailable" = "Release notes are unavailable. View the full changelog for details.";
 "menu.automatic_updates" = "Automatically Check for Updates";
 "menu.update_available_format" = "Update Available: %@…";
-"chart.inspect_hint" = "Hover to inspect a recorded sample, or use the Left and Right Arrow keys when focused.";
+"chart.inspect_hint" = "Hover to inspect a recorded sample, or use the Left and Right Arrow keys when focused. Click to pin the charts; click again to resume live charts.";
 "menu.preferences" = "Preferences";
 "login.change_failed" = "Could not change the login item. Move Neylu to Applications and try again.";
 "login.approval_hint" = "Allow Neylu in System Settings → General → Login Items.";
@@ -171,3 +171,22 @@
 "diagnostics.privacy" = "No IP addresses, interface names, disk names, local paths, logs, or monitoring values are included.";
 
 "energy.hint" = "When active, sample at intervals of at least 5 seconds in the background; opening the overview restores your configured interval.";
+
+"chart.resume_live" = "Resume Live Charts";
+"chart.toggle_pin" = "Pin or Resume Charts";
+"privacy.address_hidden" = "IP address hidden";
+"privacy.toggle_address" = "Show or Hide IP Address";
+"privacy.hide_address" = "Hide IP Address";
+"format.memory" = "Memory Display";
+"format.network" = "Network Units";
+"format.percent" = "Percentage";
+"format.capacity" = "Used Capacity";
+"format.bytes" = "Bytes per Second · B/s";
+"format.bits" = "Bits per Second · bit/s";
+"menu_bar.restore_layout" = "Restore Default Layout";
+"shortcut.title" = "Global Shortcut";
+"shortcut.configure" = "Global Shortcut…";
+"shortcut.hint" = "Press a key combination containing Control or Option to show or hide the overview. The shortcut uses the physical key position.";
+"shortcut.remove" = "Remove Shortcut";
+"shortcut.record" = "Press a Shortcut";
+"shortcut.unavailable" = "This shortcut could not be registered. Choose another combination.";

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Add synchronized chart pinning while recording continues, menu bar memory-capacity and bit-rate formats, persistent IP masking, layout-only reset, and an optional system-registered global shortcut with conflict rollback. Defaults preserve existing display formats and assign no shortcut.
+- 增加四图同步固定与恢复实时、菜单栏内存容量和比特速率格式、持久隐藏 IP、仅恢复指标布局，以及默认关闭的全局快捷键；注册冲突保留旧组合，后台采样不受图表固定影响。
+
 - Reduce background hardware polling, cache GPU core counts and display-only network addresses, and skip unchanged menu bar images and hidden plot preparation. Preserve continuous CPU/GPU/memory/network history and establish fresh disk I/O baselines on reopening.
 - Add optional energy saving (off by default), including following system Low Power Mode. While active, closed-overview sampling uses at least five-second intervals; opening the overview restores the configured interval.
 - Add persistent 2-minute, 15-minute and 1-hour history views, asynchronous loading with live-sample merging and stale-request protection, and bounded multi-channel extrema rendering using actual samples.

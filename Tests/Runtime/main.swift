@@ -1,10 +1,99 @@
 import AppKit
 import SwiftUI
 import ServiceManagement
+import Carbon.HIToolbox
 
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
+    let polishSuite = "Neylu-polish-" + UUID().uuidString
+    let polishDefaults = UserDefaults(suiteName: polishSuite)!
+    precondition(MenuBarFormats.load(from: polishDefaults) == MenuBarFormats())
+    let capacityBits = MenuBarFormats(memoryCapacity: true, networkBits: true)
+    capacityBits.save(to: polishDefaults)
+    precondition(MenuBarFormats.load(from: polishDefaults) == capacityBits)
+    precondition(capacityBits.rate(125_000, basis: .decimal) == "1.0 Mbit/s")
+    precondition(capacityBits.rate(131_072, basis: .binary) == "1.0 Mibit/s")
+    precondition(capacityBits.rate(-1, basis: .decimal) == "0 kbit/s")
+    precondition(capacityBits.rate(1, basis: .decimal, ready: false) == "—")
+    let formatMeter = MeterView(frame: .zero)
+    formatMeter.reading = Reading(usedMemory: 41_600_000_000, memoryReady: true)
+    let oldFormatWidth = MeterView.meterWidth(for: .decimal)
+    formatMeter.formats = capacityBits
+    precondition(formatMeter.accessibilitySummary.contains("41.6 GB"))
+    for basis in UnitBasis.allCases {
+        formatMeter.basis = basis
+        let width = MeterView.meterWidth(for: basis, formats: capacityBits)
+        precondition(width > oldFormatWidth && formatMeter.makeStatusImage().size.width == width)
+        for bytes in [0.0, 999_499, 999_500, 1_024_000, 125_000_000, 1e12] {
+            formatMeter.reading.upload = bytes
+            precondition(formatMeter.makeStatusImage().size.width == width)
+        }
+    }
+    let testChord = ShortcutChord(key: 0, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥A")
+    precondition(testChord.isValid && ShortcutChord.load(from: polishDefaults) == nil)
+    polishDefaults.set(try! JSONEncoder().encode(testChord), forKey: "globalShortcut")
+    precondition(ShortcutChord.load(from: polishDefaults) == testChord)
+    polishDefaults.set(Data("invalid".utf8), forKey: "globalShortcut")
+    precondition(ShortcutChord.load(from: polishDefaults) == nil)
+    precondition(!ShortcutChord(key: 0, modifiers: UInt32(cmdKey), label: "⌘A").isValid)
+    precondition(!ShortcutChord(key: 56, modifiers: UInt32(optionKey), label: "⌥⇧").isValid)
+    var registrationFails = false
+    var registeredKeys: [UInt32] = []
+    var unregisteredKeys = 0
+    let shortcut = GlobalShortcut(register: { key, _, _, result in
+        registeredKeys.append(key)
+        if registrationFails { return OSStatus(eventHotKeyExistsErr) }
+        result = OpaquePointer(bitPattern: Int(key) + 1)
+        return noErr
+    }, unregister: { _ in unregisteredKeys += 1 })
+    precondition(shortcut.set(testChord))
+    let relabeled = ShortcutChord(key: testChord.key, modifiers: testChord.modifiers, label: "⌃⌥Q")
+    precondition(shortcut.set(relabeled) && registeredKeys == [0])
+    registrationFails = true
+    let conflicting = ShortcutChord(key: 1, modifiers: UInt32(optionKey), label: "⌥S")
+    precondition(!shortcut.set(conflicting) && shortcut.chord == relabeled && unregisteredKeys == 0)
+    precondition(shortcut.set(nil) && shortcut.chord == nil && unregisteredKeys == 1)
+    precondition(registeredKeys == [0, 1])
+    polishDefaults.removePersistentDomain(forName: polishSuite)
+    let pinModel = MonitorModel(persistHistory: false)
+    let pinNow = Date()
+    let pinReading = Reading(cpuUser: 20, cpuSystem: 5, gpu: 30, gpuReady: true, usedMemory: 1024, totalMemory: 2048,
+                             download: 20, upload: 10, cpuReady: true, networkReady: true, memoryReady: true)
+    pinModel.recordCPU(pinReading, at: pinNow.addingTimeInterval(-86_400))
+    pinModel.toggleInspectionPin()
+    let pinnedWindow = pinModel.chartWindow
+    let pinnedCPU = pinModel.chartCPU
+    let pinnedGPU = pinModel.chartGPU
+    let pinnedMemory = pinModel.chartMemory
+    let pinnedNetwork = pinModel.chartNetwork
+    // Twenty-four hours of simulated two-second samples; no wall-clock claims.
+    for index in 1...43_200 {
+        pinModel.recordCPU(pinReading, at: pinNow.addingTimeInterval(-86_400 + Double(index) * 2))
+    }
+    precondition(pinModel.isInspectionPinned && pinModel.chartWindow.end == pinnedWindow.end)
+    precondition(pinModel.chartCPU == pinnedCPU && pinModel.chartGPU == pinnedGPU)
+    precondition(pinModel.chartMemory == pinnedMemory && pinModel.chartNetwork == pinnedNetwork)
+    precondition(pinModel.history.last?.timestamp == pinNow && pinModel.history.count <= 1801)
+    pinModel.resumeInspection()
+    precondition(!pinModel.isInspectionPinned && pinModel.chartWindow.end > pinnedWindow.end)
+    precondition(pinModel.chartCPU.last?.timestamp == pinNow && pinModel.chartCPU.count <= 240)
+    precondition(pinModel.chartGPU.last?.timestamp == pinNow && pinModel.chartMemory.last?.timestamp == pinNow && pinModel.chartNetwork.last?.timestamp == pinNow)
+    pinModel.toggleInspectionPin(); pinModel.reloadHistory()
+    precondition(!pinModel.isInspectionPinned)
+    let oldConfiguration = pinModel.settings.menuBarConfiguration
+    let savedFormats = pinModel.settings.menuBarFormats
+    let savedPrivacy = pinModel.settings.hideNetworkAddress
+    pinModel.settings.menuBarFormats = capacityBits
+    pinModel.settings.hideNetworkAddress = true
+    pinModel.settings.menuBarConfiguration.setEnabled(false, for: .cpu)
+    pinModel.settings.restoreMenuBarLayout()
+    precondition(pinModel.settings.menuBarConfiguration == .defaults && pinModel.history.last?.timestamp == pinNow)
+    precondition(pinModel.settings.menuBarFormats == capacityBits && pinModel.settings.hideNetworkAddress)
+    pinModel.settings.menuBarConfiguration = oldConfiguration
+    pinModel.settings.menuBarFormats = savedFormats
+    pinModel.settings.hideNetworkAddress = savedPrivacy
+    print("PASS: menu formats/boundaries, isolated shortcut registration/conflict rollback, layout-only reset and 24-hour simulated recording with frozen charts")
     let energySuite = "Neylu-efficiency-" + UUID().uuidString
     let energyDefaults = UserDefaults(suiteName: energySuite)!
     precondition(EnergyMode.load(from: energyDefaults) == .off)
@@ -402,6 +491,20 @@ if CommandLine.arguments.contains("--self-test") {
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))
     hiddenHost.view.layoutSubtreeIfNeeded()
     precondition(hiddenHost.view.fittingSize.width == 380)
+    let recorderWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 80), styleMask: [.titled], backing: .buffered, defer: false)
+    recorderWindow.isReleasedWhenClosed = false
+    let recorder = ShortcutRecorder(labelWithString: "")
+    recorder.frame = NSRect(x: 10, y: 10, width: 200, height: 30)
+    recorderWindow.contentView!.addSubview(recorder)
+    let recordEvent = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.control, .option], timestamp: 0,
+        windowNumber: recorderWindow.windowNumber, context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0)!
+    precondition(!recorder.performKeyEquivalent(with: recordEvent) && recorder.recorded == nil)
+    precondition(recorderWindow.makeFirstResponder(recorder))
+    precondition(recorder.performKeyEquivalent(with: recordEvent) && recorder.recorded == testChord)
+    recorderWindow.makeFirstResponder(nil)
+    precondition(!recorder.performKeyEquivalent(with: recordEvent))
+    recorderWindow.close()
+    print("PASS: native shortcut recorder captures local keys only while it is the focused responder")
     let escapeWindow = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
     escapeWindow.isReleasedWhenClosed = false
     escapeWindow.orderFront(nil)
@@ -446,7 +549,7 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(badgeMenu.item(withTag: 13)!.title.contains("0.1.0-alpha.10"))
     precondition(settingsCoordinator.item(15, in: badgeMenu)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
     precondition(badgeMenu.items.filter { !$0.isSeparatorItem }.map(\.tag) == [6,3,16,10,13,14,18,11,12])
-    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,17,2,5,1,15])
+    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,17,19,2,5,1,15])
     let nestedPreferences = settingsCoordinator.item(16, in: badgeMenu)!.submenu!
     let nestedRefresh = settingsCoordinator.item(4, in: badgeMenu)!
     settingsCoordinator.menuNeedsUpdate(nestedPreferences)

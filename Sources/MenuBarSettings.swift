@@ -24,6 +24,12 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     private let sectionLabel = NSTextField(labelWithString: "")
     private let helpLabel = NSTextField(labelWithString: "")
     private let savedLabel = NSTextField(labelWithString: "")
+    private let memoryFormat = NSPopUpButton()
+    private let networkFormat = NSPopUpButton()
+    private let memoryLabel = NSTextField(labelWithString: "")
+    private let networkLabel = NSTextField(labelWithString: "")
+    private let privacy = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let restore = NSButton()
     private var subscriptions = Set<AnyCancellable>()
     private var selectedMetric: MenuBarMetric?
     private static let dragType = NSPasteboard.PasteboardType("io.github.chenmobuys.Neylu.menuBarMetric")
@@ -75,6 +81,15 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             content.addSubview(preview)
             preview.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
         }
+        for (label, control, tag) in [(memoryLabel, memoryFormat, 0), (networkLabel, networkFormat, 1)] {
+            control.tag = tag; control.target = self; control.action = #selector(changeFormat(_:))
+            let row = NSStackView(views: [label, NSView(), control])
+            row.orientation = .horizontal
+            stack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
+        privacy.target = self; privacy.action = #selector(togglePrivacy)
+        stack.addArrangedSubview(privacy)
         stack.addArrangedSubview(sectionLabel)
         table.headerView = nil
         table.style = .inset
@@ -108,6 +123,9 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         footer.distribution = .fill
         stack.addArrangedSubview(footer)
         footer.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        restore.target = self; restore.action = #selector(restoreLayout)
+        restore.bezelStyle = .rounded
+        stack.addArrangedSubview(restore)
         refreshControls()
         window.setContentSize(NSSize(width: 380, height: surface.fittingSize.height))
         window.center()
@@ -118,6 +136,12 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         }.store(in: &subscriptions)
         model.settings.$menuBarConfiguration.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.refreshControls() }
+        }.store(in: &subscriptions)
+        model.settings.$menuBarFormats.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async { self?.refreshPreview() }
+        }.store(in: &subscriptions)
+        model.settings.$hideNetworkAddress.dropFirst().sink { [weak self] hidden in
+            DispatchQueue.main.async { self?.privacy.state = hidden ? .on : .off }
         }.store(in: &subscriptions)
         model.settings.$basis.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.refreshPreview() }
@@ -138,8 +162,9 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         preview.reading = model.reading
         window?.contentView?.layoutSubtreeIfNeeded()
         preview.basis = model.basis
+        preview.formats = model.settings.menuBarFormats
         preview.configuration = model.settings.menuBarConfiguration
-        let width = MeterView.meterWidth(for: model.basis, configuration: preview.configuration)
+        let width = MeterView.meterWidth(for: model.basis, configuration: preview.configuration, formats: preview.formats)
         if let parent = preview.superview {
             preview.frame = NSRect(x: max(0, parent.bounds.width - width), y: (parent.bounds.height - 22) / 2, width: width, height: 22)
         }
@@ -148,6 +173,16 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     }
     private func refreshControls() {
         window?.title = L("menu_bar.title")
+        memoryLabel.stringValue = L("format.memory")
+        networkLabel.stringValue = L("format.network")
+        memoryFormat.removeAllItems(); memoryFormat.addItems(withTitles: [L("format.percent"), L("format.capacity")])
+        networkFormat.removeAllItems(); networkFormat.addItems(withTitles: [L("format.bytes"), L("format.bits")])
+        memoryFormat.selectItem(at: model.settings.menuBarFormats.memoryCapacity ? 1 : 0)
+        networkFormat.selectItem(at: model.settings.menuBarFormats.networkBits ? 1 : 0)
+        memoryFormat.setAccessibilityLabel(L("format.memory")); networkFormat.setAccessibilityLabel(L("format.network"))
+        privacy.title = L("privacy.hide_address"); privacy.state = model.settings.hideNetworkAddress ? .on : .off
+        restore.title = L("menu_bar.restore_layout")
+        restore.isEnabled = model.settings.menuBarConfiguration != .defaults
         previewLabel.stringValue = L("menu_bar.preview")
         sectionLabel.stringValue = L("menu_bar.visible_metrics")
         helpLabel.stringValue = L("menu_bar.drag_to_reorder") + " · ⌥↑↓"
@@ -215,6 +250,15 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             handle.beginDraggingSession(with: [draggingItem], event: event, source: self.table)
         }
         return cell
+    }
+    @objc private func changeFormat(_ sender: NSPopUpButton) {
+        if sender.tag == 0 { model.settings.menuBarFormats.memoryCapacity = sender.indexOfSelectedItem == 1 }
+        else { model.settings.menuBarFormats.networkBits = sender.indexOfSelectedItem == 1 }
+    }
+    @objc private func togglePrivacy() { model.settings.hideNetworkAddress = privacy.state == .on }
+    @objc private func restoreLayout() {
+        selectedMetric = nil; table.deselectAll(nil)
+        model.settings.restoreMenuBarLayout()
     }
     @objc private func toggleMetric(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue, let metric = MenuBarMetric(rawValue: id) else { return }

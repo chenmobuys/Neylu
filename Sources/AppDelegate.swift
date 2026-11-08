@@ -136,6 +136,7 @@ final class StatusItemResizeGate {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let globalShortcut = GlobalShortcut()
     private var item: NSStatusItem!
     private var meter: MeterView!
     private let sampling = SamplingService()
@@ -183,7 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meter = MeterView(frame: NSRect(x: 0, y: 0, width: MeterView.meterWidth(for: model.basis), height: 22))
         meter.basis = model.basis
         meter.configuration = model.settings.menuBarConfiguration
-        item.length = MeterView.meterWidth(for: model.basis, configuration: meter.configuration)
+        meter.formats = model.settings.menuBarFormats
+        item.length = MeterView.meterWidth(for: model.basis, configuration: meter.configuration, formats: meter.formats)
         button.imagePosition = .imageOnly
         // The status window may finish resizing after a new image is assigned.
         // Keep every intermediate frame inside the space AppKit has allocated.
@@ -206,6 +208,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.onHide = { [weak self] in
             guard let self else { return }
             self.model.layout.isVisible = false
+            self.model.resumeInspection()
             self.restartSamplingTimer()
         }
         panel.autorecalculatesKeyViewLoop = true
@@ -269,6 +272,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return Diagnostics.report(reading: model.reading, settings: model.settings,
                 historyAvailable: model.historyStorageAvailable, detailsVisible: model.layout.isVisible)
         }
+        globalShortcut.action = { [weak self] in
+            guard NSApp.modalWindow == nil else { return }
+            self?.toggleDetails()
+        }
+        if !globalShortcut.set(ShortcutChord.load()) { model.error = L("shortcut.unavailable") }
+        model.settings.onConfigureShortcut = { [weak self] in self?.globalShortcut.configure() }
         model.onSettingsChange = { [weak self] in self?.applySettings() }
         model.settings.onMenuBarChange = { [weak self] in
             guard let self else { return }
@@ -379,8 +388,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyMenuBarConfiguration() {
         lastDisplayKey = nil
         meter.configuration = model.settings.menuBarConfiguration
+        meter.formats = model.settings.menuBarFormats
         guard let button = item.button else { return }
-        let width = MeterView.meterWidth(for: model.basis, configuration: meter.configuration)
+        let width = MeterView.meterWidth(for: model.basis, configuration: meter.configuration, formats: meter.formats)
         if width < item.length {
             // The shorter bitmap fits both the old and new allocations.
             statusResize.cancel()
@@ -443,7 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = meter.displayKey
         guard key != lastDisplayKey else { return }
         lastDisplayKey = key
-        setStatusContent(meter.makeStatusImage(), width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration))
+        setStatusContent(meter.makeStatusImage(), width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration, formats: meter.formats))
         item.button?.setAccessibilityLabel(meter.accessibilitySummary)
     }
     func applicationWillTerminate(_ notification: Notification) {

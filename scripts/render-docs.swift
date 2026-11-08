@@ -90,3 +90,14 @@ for (name, appearanceName) in [("light", NSAppearance.Name.aqua), ("dark", .dark
     NSGraphicsContext.restoreGraphicsState()
     try bar.representation(using: .png, properties: [:])!.write(to: destination.appendingPathComponent("menu-\(name)@4x.png"))
 }
+
+if CommandLine.arguments.contains("--settings") {
+    let model = MonitorModel(persistHistory: false)
+    model.applyScreenshotFixture()
+    let controller = MenuBarSettingsController(model: model)
+    let view = controller.window!.contentView!
+    view.layoutSubtreeIfNeeded()
+    let image = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
+    view.cacheDisplay(in: view.bounds, to: image)
+    try image.representation(using: .png, properties: [:])!.write(to: destination.appendingPathComponent("menu-bar-settings.png"))
+}

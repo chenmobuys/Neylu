@@ -12,6 +12,8 @@
 
 诊断复制采用字段白名单，不序列化监控对象、偏好集合或错误日志；不含 IP、网卡/磁盘名、路径或实际读数，只在用户点击时写入剪贴板，不自动发送。
 
+IP 隐藏同时应用于详情文字和悬浮提示，辅助功能不会额外暴露地址。全局快捷键默认关闭，使用系统热键注册，仅在设置录入框聚焦时接收本地按键；不使用全局键盘监听或申请辅助功能权限。注册失败保留已有快捷键。
+
 ## English
 
 The latest published release is maintained. Monitoring data stays local, with no telemetry, uploads, or administrator privileges. Static appcast checks run daily by default and can be disabled. Manual checks and installer downloads also use GitHub’s static content and HTTPS asset services. The client does not use the GitHub REST API or require an account or token.
@@ -23,3 +25,5 @@ Installers, Homebrew, and release automation do not disable Gatekeeper/SIP or au
 Do not disclose credentials, certificates, private diagnostics, or details of unfixed vulnerabilities publicly. Prefer **Security → Advisories → Private vulnerability reporting** in this repository. If it is unavailable, contact the maintainer to establish a private reporting channel first.
 
 Diagnostics use an explicit field allowlist, never serialization of monitoring objects, preference collections, or error logs. IP addresses, interface/disk names, paths, and actual readings are excluded. The clipboard is written only on user action; nothing is transmitted automatically.
+
+IP masking covers detail text and tooltips, with no separate address exposed through accessibility. Global shortcuts are disabled by default and use system hotkey registration. Local keystrokes are captured only while the settings recorder has focus; there is no global keyboard monitor or Accessibility permission request. Registration failures preserve the existing shortcut.

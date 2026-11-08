@@ -57,6 +57,8 @@ struct ChartFocusAppearance: ViewModifier {
 private struct ChartInspectionModifier: ViewModifier {
     @Binding var date: Date?
     @FocusState private var isFocused: Bool
+    let isPinned: Bool
+    let togglePin: () -> Void
     let samples: [Date]
     let window: HistoryWindow
     let readout: ChartReadout?
@@ -89,7 +91,18 @@ private struct ChartInspectionModifier: ViewModifier {
                     }
                 }
                 .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onEnded { value in
+                    guard abs(value.translation.width) < 4, abs(value.translation.height) < 4 else { return }
+                    if !isPinned {
+                        let fraction = min(1, max(0, value.location.x / max(1, geometry.size.width)))
+                        let target = window.start.addingTimeInterval(fraction * window.end.timeIntervalSince(window.start))
+                        date = ChartReadout.nearest(visible, at: target, timestamp: \.self)
+                        guard date != nil else { return }
+                    }
+                    togglePin()
+                })
                 .background(ChartHoverArea { point in
+                    guard !isPinned else { return }
                     guard let point, geometry.size.width > 0 else { date = nil; return }
                     let fraction = min(1, max(0, point.x / geometry.size.width))
                     let target = window.start.addingTimeInterval(fraction * window.end.timeIntervalSince(window.start))
@@ -106,13 +119,17 @@ private struct ChartInspectionModifier: ViewModifier {
             date = visible[min(visible.count - 1, max(0, index + (direction == .left ? -1 : 1)))]
         }
         .accessibilityElement(children: .combine)
+        .accessibilityAction(named: Text(L("chart.toggle_pin"))) {
+            if date == nil { date = visible.last }
+            if date != nil { togglePin() }
+        }
         .accessibilityHint(L("chart.inspect_hint"))
         .accessibilityValue(readout.map { $0.timestamp.formatted(date: .omitted, time: .standard) + " · " + $0.value } ?? "")
     }
 }
 
 extension View {
-    func chartInspection(date: Binding<Date?>, samples: [Date], window: HistoryWindow, readout: ChartReadout?) -> some View {
-        modifier(ChartInspectionModifier(date: date, samples: samples, window: window, readout: readout))
+    func chartInspection(date: Binding<Date?>, isPinned: Bool = false, togglePin: @escaping () -> Void = {}, samples: [Date], window: HistoryWindow, readout: ChartReadout?) -> some View {
+        modifier(ChartInspectionModifier(date: date, isPinned: isPinned, togglePin: togglePin, samples: samples, window: window, readout: readout))
     }
 }

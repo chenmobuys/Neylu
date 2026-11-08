@@ -55,3 +55,13 @@ When reporting an issue, include the Neylu version, macOS version, chip, and err
 **Preferences → Energy Saving** offers Off (the default), Follow System Low Power Mode, and On. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only temperature and disk I/O sampling pauses, and reopening establishes fresh baselines.
 
 Choose **Copy Diagnostics** in the settings menu or About window to copy version, system, processor, refresh policy, and metric availability. IP addresses, interface/disk names, paths, logs, and actual monitoring values are excluded; nothing is sent automatically. Some fields normally show “Unavailable or not sampled” while details are closed; that does not establish that the hardware is unsupported.
+
+## Display and chart interaction
+
+**Menu Bar Items…** lets you switch memory from Percentage (the default) to Used Capacity, and network rates from Bytes per Second (the default) to Bits per Second. Decimal/binary units remain independent. These formats affect the menu bar only; details continue to use bytes. Restore Default Layout resets only metric order and visibility, preserving formats, history, and other preferences.
+
+Click any chart to pin the time range and readouts across all four charts. Background recording and live menu bar values continue. Click again or use the play button at the top to resume live charts. Closing the overview or changing its history range also resumes live charts. Inspection selects actual samples only.
+
+**Hide IP Address** masks both the address and its tooltip. The eye button in the network section toggles visibility. This preference persists across launches; copied diagnostics always exclude the IP address.
+
+In **Preferences → Global Shortcut…**, record a combination containing Control or Option to show or hide the overview. No shortcut is assigned by default. You can remove it at any time; registration failures preserve the previous shortcut. Shortcuts use physical key positions; after changing keyboard layouts, remove and re-record the shortcut to update its displayed name. Registration uses the system hotkey API, without Accessibility permission or a global keyboard event monitor.

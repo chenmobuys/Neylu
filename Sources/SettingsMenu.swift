@@ -55,6 +55,13 @@ final class MonitorSettings: ObservableObject {
             onMenuBarChange?()
         }
     }
+    @Published var menuBarFormats = MenuBarFormats.load() {
+        didSet { guard menuBarFormats != oldValue else { return }; menuBarFormats.save(); onMenuBarChange?() }
+    }
+    @Published var hideNetworkAddress = UserDefaults.standard.bool(forKey: "hideNetworkAddress") {
+        didSet { UserDefaults.standard.set(hideNetworkAddress, forKey: "hideNetworkAddress") }
+    }
+    func restoreMenuBarLayout() { menuBarConfiguration = .defaults }
     @Published var availableUpdateVersion: String?
     @Published var automaticUpdateChecks = UserDefaults.standard.object(forKey: "automaticUpdateChecks") as? Bool ?? true {
         didSet {
@@ -69,6 +76,7 @@ final class MonitorSettings: ObservableObject {
         return Diagnostics.copy(report, to: pasteboard)
     }
     var onAutomaticUpdateChange: (() -> Void)?
+    var onConfigureShortcut: (() -> Void)?
     var onMenuBarChange: (() -> Void)?
     var onLanguageChange: (() -> Void)?
     var onRefreshIntervalChange: (() -> Void)?
@@ -169,6 +177,8 @@ struct SettingsMenuButton: NSViewRepresentable {
             energyItem.tag = 17; energyItem.submenu = energy
             energyItem.toolTip = L("energy.hint")
             preferences.addItem(energyItem)
+            let shortcut = NSMenuItem(title: L("shortcut.configure"), action: #selector(configureShortcut), keyEquivalent: "")
+            shortcut.tag = 19; shortcut.target = self; preferences.addItem(shortcut)
             let units = NSMenu(title: L("menu.units"))
             units.autoenablesItems = false
             for basis in UnitBasis.allCases {
@@ -254,7 +264,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (2, "menu.units"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences"), (17, "menu.energy_mode"), (18, "menu.copy_diagnostics")] {
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences"), (17, "menu.energy_mode"), (18, "menu.copy_diagnostics"), (19, "shortcut.configure")] {
                 item(tag, in: menu)?.title = L(key)
                 item(tag, in: menu)?.submenu?.title = L(key)
             }
@@ -313,6 +323,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let raw = sender.representedObject as? String, let mode = AppearanceMode(rawValue: raw) else { return }
             settings.appearanceMode = mode
         }
+        @objc private func configureShortcut() { settings.onConfigureShortcut?() }
         @objc private func selectEnergyMode(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? String, let mode = EnergyMode(rawValue: raw) else { return }
             settings.energyMode = mode

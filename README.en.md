@@ -50,8 +50,8 @@ Use your actual installation path. This affects only Neylu; it does not disable 
 ## Use
 
 - Left-click the menu bar readings to open the overview; right-click, or use **…**, to open settings.
-- **Menu Bar Items…** selects and reorders metrics; **Appearance** changes the theme; **Preferences** contains refresh interval, energy saving, units, language, login, and automatic update checks.
-- Choose a history range at the top of the overview; hover or use Left/Right Arrow keys to inspect real samples. Press Escape to close details and utility windows.
+- **Menu Bar Items…** selects and reorders metrics, sets memory/network formats, hides the IP address, or restores the default layout; **Appearance** changes the theme; **Preferences** contains refresh interval, energy saving, units, a global shortcut, language, login, and automatic update checks.
+- Choose a history range at the top of the overview; hover or use Left/Right Arrow keys to inspect real samples; click a chart to pin it, then click again or use the play button to resume live charts. Press Escape to close details and utility windows.
 - Copy diagnostics without IP addresses or paths from the menu or About window. Choose **Check for Updates…**, or update with `brew update && brew upgrade --cask --greedy neylu`.
 
 ## Documentation
