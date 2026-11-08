@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+<!-- neylu:en -->
+### English
+
+- Keep a completed manual update check authoritative over older background requests, preventing stale results from clearing a newly discovered update.
+- Bound update preparation commands by time and output size. Cancel and reap the owned subprocess before removing its private files; use independent bounded cleanup for mounted installers. Add a specific localized preparation-timeout message.
+- Add native regression coverage for manual/background result ordering, unresponsive tools, cancellation, excessive output, and cleanup after cancellation.
+
+<!-- neylu:zh-Hans -->
+### 中文
+
+- 手动更新检查完成后使旧后台请求失效，避免过期结果清除刚发现的新版提示。
+- 为更新准备命令增加超时与输出大小检查，取消时先停止并回收本次子进程，再清理私有文件；映像卸载使用独立的限时清理，并增加准备超时的专用文案。
+- 补充原生回归，覆盖手动／后台结果乱序、无响应工具、取消、过量输出及取消后的清理。
+
 ## [0.1.0-rc.1] - 2026-11-08
 
 <!-- neylu:en -->

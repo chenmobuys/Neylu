@@ -213,3 +213,5 @@
 "update.recovery.install" = "可重试更新，或下载 DMG 手动安装。";
 
 "link.download_page" = "下载页面";
+
+"update.error.preparation_timeout" = "更新准备超时，尚未替换已安装的应用。请重试或下载安装包。";

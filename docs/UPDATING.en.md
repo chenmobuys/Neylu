@@ -75,3 +75,7 @@ Invalid release information prompts a fresh check. Network interruptions, checks
 Closing or cancelling the update window invalidates old callbacks, and reopening it starts a fresh check. Each attempt owns a separate private directory with mode 0700; failure or cancellation cleans only that attempt after background preparation stops. Files handed to the verified updater are owned by the helper; a verified DMG opened in Finder remains available for manual installation. A still-mounted image is neither recursively deleted nor forcibly detached.
 
 The [download page](https://github.com/chenmobuys/Neylu/blob/updates/downloads.md) selects the latest published installer pair by semantic version and shows each architecture's system requirement, independent of GitHub list order.
+
+## Preparation timeouts and cancellation
+
+A completed manual check takes precedence over older background requests. Preparation commands have a default 120-second timeout; copying the app allows up to 300 seconds. Commands stop when output exceeds 1 MiB. Cancellation stops and reaps the owned subprocess before its private files are removed. Each image-detach command has a 30-second timeout, with bounded retries only when busy and no forced unmount. If detachment fails, the mounted workspace is preserved to avoid recursive deletion of image contents.

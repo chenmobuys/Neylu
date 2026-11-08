@@ -27,3 +27,9 @@ Do not disclose credentials, certificates, private diagnostics, or details of un
 Diagnostics use an explicit field allowlist, never serialization of monitoring objects, preference collections, or error logs. IP addresses, interface/disk names, paths, and actual readings are excluded. The clipboard is written only on user action; nothing is transmitted automatically.
 
 IP masking covers detail text and tooltips, with no separate address exposed through accessibility. Global shortcuts are disabled by default and use system hotkey registration. Local keystrokes are captured only while the settings recorder has focus; there is no global keyboard monitor or Accessibility permission request. Registration failures preserve the existing shortcut.
+
+
+## 更新子进程 / Update subprocesses
+
+更新命令只使用固定系统可执行文件及独立参数，不经过 shell。标准输入关闭，输出写入本次私有目录的 0600 文件并检查大小，命令有单独时限；取消后先停止本次持有的 Process，再清理目录。卸载映像保持独立的超时，且不传入强制卸载参数。
+Update commands use fixed system executables and separate arguments, without a shell. Standard input is closed; output is written to an owner-only file in a private per-command directory and checked for size. Commands have individual deadlines. Cancellation stops the owned Process before directory cleanup. Image detachment retains its own timeout and never uses force-unmount flags.

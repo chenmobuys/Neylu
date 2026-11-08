@@ -40,6 +40,7 @@ enum UpdateFailure: String, Error, LocalizedError, CaseIterable {
     case destination = "update.error.destination"
     case operation = "update.error.installation"
     case timeout = "update.error.quit_timeout"
+    case preparationTimeout = "update.error.preparation_timeout"
     case incomplete = "update.error.incomplete_release"
     case rateLimited = "update.error.rate_limited"
     case launch = "update.error.startup"
@@ -141,18 +142,58 @@ enum UpdateFiles {
         return true
     }
     @discardableResult
-    static func run(_ path: String, _ arguments: [String]) throws -> Data {
+    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 120,
+                    outputLimit: UInt64 = 1024 * 1024) throws -> Data {
+        let result = try execute(path, arguments, timeout: timeout, outputLimit: outputLimit)
+        guard result.status == 0 else { throw UpdateFailure.operation }
+        return result.output
+    }
+    static func execute(_ path: String, _ arguments: [String], timeout: TimeInterval = 120,
+                        outputLimit: UInt64 = 1024 * 1024, cancellable: Bool = true) throws -> (status: Int32, output: Data) {
+        if cancellable { try Task.checkCancellation() }
+        guard timeout.isFinite, timeout > 0, outputLimit > 0 else { throw UpdateFailure.operation }
+        // A file sink avoids pipe deadlocks and lets cancellation interrupt
+        // tools that stop producing output. The folder belongs to this command.
+        let folder = fm.temporaryDirectory.appendingPathComponent("Neylu-command-" + UUID().uuidString)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? fm.removeItem(at: folder) }
+        let outputURL = folder.appendingPathComponent("stdout")
+        guard fm.createFile(atPath: outputURL.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw UpdateFailure.operation }
+        let output = try FileHandle(forWritingTo: outputURL)
+        defer { try? output.close() }
         let process = Process()
+        let finished = DispatchSemaphore(value: 0)
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
-        let output = Pipe()
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { _ in finished.signal() }
         try process.run()
-        let result = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw UpdateFailure.operation }
-        return result
+        defer {
+            // Stop only the exact process this call started. Escalation is
+            // bounded and never involves a disk eject or a shell command.
+            if process.isRunning {
+                process.terminate()
+                if finished.wait(timeout: .now() + 1) != .success, process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                }
+            }
+            process.waitUntilExit()
+        }
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        func checkOutputSize() throws {
+            let size = (try fm.attributesOfItem(atPath: outputURL.path)[.size] as? NSNumber)?.uint64Value ?? 0
+            guard size <= outputLimit else { throw UpdateFailure.operation }
+        }
+        while finished.wait(timeout: .now() + 0.05) != .success {
+            if cancellable { try Task.checkCancellation() }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { throw UpdateFailure.preparationTimeout }
+            try checkOutputSize()
+        }
+        if cancellable { try Task.checkCancellation() }
+        try checkOutputSize()
+        return (process.terminationStatus, try Data(contentsOf: outputURL))
     }
     static func signingTeam(_ app: URL) throws -> String? {
         var code: SecStaticCode?

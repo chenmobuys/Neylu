@@ -404,7 +404,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         try FileManager.default.createDirectory(at: stage, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         do {
             let candidate = stage.appendingPathComponent("Neylu.app")
-            try UpdateFiles.run("/usr/bin/ditto", [mount.appendingPathComponent("Neylu.app").path, candidate.path])
+            try UpdateFiles.run("/usr/bin/ditto", [mount.appendingPathComponent("Neylu.app").path, candidate.path], timeout: 300)
             try Task.checkCancellation()
             try UpdateFiles.validate(candidate, version: update.version, architecture: architecture, requiredTeam: UpdateFiles.signingTeam(target))
             let resources = stage.appendingPathComponent("Resources", isDirectory: true)

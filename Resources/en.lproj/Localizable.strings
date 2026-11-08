@@ -213,3 +213,5 @@
 "update.recovery.install" = "Retry the update, or download the DMG for manual installation.";
 
 "link.download_page" = "Download Page";
+
+"update.error.preparation_timeout" = "Preparing the update took too long. Your installed app has not been replaced. Try again or download the installer.";

@@ -25,7 +25,7 @@ The preview uses demonstration readings. Native materials adapt to the system ap
 - Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance. Login items use SMAppService on macOS 13+ and the legacy system API on macOS 12.
 - English and Simplified Chinese; configurable refresh intervals, decimal or binary units, and energy-saving options.
 - Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. Network charts mark peaks above the displayed range and show original upload/download rates on hover. No telemetry or monitoring-data uploads.
-- Built-in update checks, verified installers, contextual retry actions, and release notes after upgrades.
+- Built-in update checks, verified installers, cancellable preparation, contextual retry actions, and release notes after upgrades.
 
 ## Metric availability
 
@@ -71,3 +71,5 @@ Use your actual installation path. This affects only Neylu; it does not disable 
 - [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [MIT License](LICENSE) · [Attributions](THIRD_PARTY_NOTICES.md)
 
 [Compatibility validation and untested environments](docs/COMPATIBILITY.md)
+
+[正式版验收记录 / Release readiness](docs/RELEASE-READINESS.md)

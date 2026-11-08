@@ -61,14 +61,9 @@ enum UpdateMount {
     static func detach(at url: URL, execute: ((URL) throws -> Int32)? = nil,
                        pause: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) }) throws {
         let operation = execute ?? { mount in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-            process.arguments = ["detach", mount.path]
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus
+            // Cleanup still runs after parent cancellation, with its own
+            // deadline. Never force-unmount a busy disk image.
+            try UpdateFiles.execute("/usr/bin/hdiutil", ["detach", mount.path], timeout: 30, cancellable: false).status
         }
         for attempt in 0..<4 {
             let result = try operation(url)

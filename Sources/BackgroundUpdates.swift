@@ -50,6 +50,13 @@ final class BackgroundUpdateChecker {
         task?.cancel(); task = nil
     }
     func accept(_ update: AvailableUpdate?) {
+        // A completed manual check is authoritative over an older background
+        // request, including one whose transport ignores cancellation.
+        stop()
+        record(update)
+        start()
+    }
+    private func record(_ update: AvailableUpdate?) {
         settings.availableUpdateVersion = update?.version.text
         if let update { defaults.set(update.version.text, forKey: Self.availableKey) }
         else { defaults.removeObject(forKey: Self.availableKey) }
@@ -64,7 +71,7 @@ final class BackgroundUpdateChecker {
             do {
                 let result = try await check(current)
                 guard let self, token == self.generation, !Task.isCancelled else { return }
-                if self.settings.automaticUpdateChecks { self.accept(result) }
+                if self.settings.automaticUpdateChecks { self.record(result) }
             } catch { /* Silent daily backoff; manual checks still show actionable errors. */ }
             guard let self, token == self.generation else { return }
             self.task = nil

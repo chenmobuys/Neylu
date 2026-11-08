@@ -25,7 +25,7 @@
 - macOS 26+ 使用系统玻璃，更早版本使用系统材质；支持自动、浅色、深色外观。开机启动在 macOS 13+ 使用 SMAppService，macOS 12 使用系统兼容接口。
 - 简体中文与英文；可调整刷新间隔、十进制或二进制单位，并选择省电模式。
 - 本机保留 24 小时历史，图表可切换两分钟、十五分钟或一小时，并固定历史读数；网络图表标记超量程尖峰，悬浮显示原始上传／下载速率；无遥测，不上传监控数据。
-- 内置更新检查、安装包校验、失败分类重试和升级后的更新说明。
+- 内置更新检查、安装包校验、可取消的更新准备、失败分类重试和升级后的更新说明。
 
 ## 指标可用性
 
@@ -71,3 +71,5 @@ xattr -dr com.apple.quarantine "/Applications/Neylu.app"
 - [更新记录](CHANGELOG.md) · [安全反馈](SECURITY.md) · [MIT 许可](LICENSE) · [第三方致谢](THIRD_PARTY_NOTICES.md)
 
 [兼容性验收与未实测范围](docs/COMPATIBILITY.md)
+
+[正式版验收记录 / Release readiness](docs/RELEASE-READINESS.md)
