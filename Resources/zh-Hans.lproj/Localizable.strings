@@ -136,3 +136,38 @@
 "menu.preferences" = "偏好设置";
 "login.change_failed" = "无法修改开机启动设置，请将 Neylu 移入“应用程序”后重试。";
 "login.approval_hint" = "请在系统设置 → 通用 → 登录项中允许 Neylu。";
+
+"menu.energy_mode" = "省电模式";
+"energy.off" = "关闭";
+"energy.automatic" = "跟随系统低电量模式";
+"energy.on" = "开启";
+
+"history.range" = "图表范围";
+"history.range.two_minutes" = "2 分钟";
+"history.range.fifteen_minutes" = "15 分钟";
+"history.range.one_hour" = "1 小时";
+
+"menu.copy_diagnostics" = "复制诊断信息";
+"diagnostics.copied" = "已复制";
+"diagnostics.available" = "可用";
+"diagnostics.not_available" = "不可用或尚未采样";
+"diagnostics.version" = "版本";
+"diagnostics.build" = "构建号";
+"diagnostics.system" = "系统";
+"diagnostics.hardware" = "处理器";
+"diagnostics.architecture" = "架构";
+"diagnostics.requested_interval" = "设定刷新间隔";
+"diagnostics.effective_interval" = "当前采样间隔";
+"diagnostics.low_power" = "系统低电量模式";
+"diagnostics.history" = "历史存储";
+"diagnostics.cpu" = "CPU 指标";
+"diagnostics.gpu" = "GPU 利用率";
+"diagnostics.renderer" = "GPU 渲染指标";
+"diagnostics.tiler" = "GPU Tiler 指标";
+"diagnostics.memory" = "内存指标";
+"diagnostics.network" = "网络指标";
+"diagnostics.temperature" = "温度传感器";
+"diagnostics.disk" = "磁盘读写指标";
+"diagnostics.privacy" = "不包含 IP、网卡名、磁盘名、本机路径、日志或监控数值。";
+
+"energy.hint" = "生效时后台采样间隔至少为 5 秒；打开详情恢复设定的刷新间隔。";

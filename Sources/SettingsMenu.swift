@@ -34,6 +34,13 @@ final class MonitorSettings: ObservableObject {
             onRefreshIntervalChange?()
         }
     }
+    @Published var energyMode = EnergyMode.load() {
+        didSet { guard energyMode != oldValue else { return }; energyMode.save(); onRefreshIntervalChange?() }
+    }
+    @Published var historyRange = HistoryRange.load() {
+        didSet { guard historyRange != oldValue else { return }; historyRange.save(); onHistoryRangeChange?() }
+    }
+    var onHistoryRangeChange: (() -> Void)?
     @Published var language = AppLanguage.load() {
         didSet {
             guard language != oldValue else { return }
@@ -55,6 +62,11 @@ final class MonitorSettings: ObservableObject {
             UserDefaults.standard.set(automaticUpdateChecks, forKey: "automaticUpdateChecks")
             onAutomaticUpdateChange?()
         }
+    }
+    var diagnosticsProvider: (() -> String)?
+    @discardableResult func copyDiagnostics(to pasteboard: NSPasteboard = .general) -> Bool {
+        guard let report = diagnosticsProvider?() else { return false }
+        return Diagnostics.copy(report, to: pasteboard)
     }
     var onAutomaticUpdateChange: (() -> Void)?
     var onMenuBarChange: (() -> Void)?
@@ -147,6 +159,16 @@ struct SettingsMenuButton: NSViewRepresentable {
             refreshItem.tag = 4
             refreshItem.submenu = refresh
             preferences.addItem(refreshItem)
+            let energy = NSMenu(title: L("menu.energy_mode"))
+            for mode in EnergyMode.allCases {
+                let option = NSMenuItem(title: mode.title, action: #selector(selectEnergyMode(_:)), keyEquivalent: "")
+                option.target = self; option.representedObject = mode.rawValue
+                energy.addItem(option)
+            }
+            let energyItem = NSMenuItem(title: L("menu.energy_mode"), action: nil, keyEquivalent: "")
+            energyItem.tag = 17; energyItem.submenu = energy
+            energyItem.toolTip = L("energy.hint")
+            preferences.addItem(energyItem)
             let units = NSMenu(title: L("menu.units"))
             units.autoenablesItems = false
             for basis in UnitBasis.allCases {
@@ -199,6 +221,9 @@ struct SettingsMenuButton: NSViewRepresentable {
             notes.tag = 14
             notes.target = self
             menu.addItem(notes)
+            let diagnostics = NSMenuItem(title: L("menu.copy_diagnostics"), action: #selector(copyDiagnostics), keyEquivalent: "")
+            diagnostics.tag = 18; diagnostics.target = self
+            menu.addItem(diagnostics)
             let about = NSMenuItem(title: L("menu.about"), action: #selector(showAbout), keyEquivalent: "")
             about.tag = 11
             about.target = self
@@ -229,13 +254,14 @@ struct SettingsMenuButton: NSViewRepresentable {
             guard let menu else { return }
             menu.title = L("menu.more")
             for (tag, key) in [(1, "menu.open_at_login"), (2, "menu.units"), (3, "menu.appearance"), (4, "menu.refresh_interval"), (5, "menu.language"), (6, "menu.menu_bar_items"),
-                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences")] {
+                               (10, "menu.activity_monitor"), (11, "menu.about"), (12, "menu.quit"), (13, "menu.check_for_updates"), (14, "menu.release_notes"), (15, "menu.automatic_updates"), (16, "menu.preferences"), (17, "menu.energy_mode"), (18, "menu.copy_diagnostics")] {
                 item(tag, in: menu)?.title = L(key)
                 item(tag, in: menu)?.submenu?.title = L(key)
             }
             if let version = settings.availableUpdateVersion {
                 item(13, in: menu)?.title = String(format: L("menu.update_available_format"), version)
             }
+            item(17, in: menu)?.toolTip = L("energy.hint")
             item(15, in: menu)?.state = settings.automaticUpdateChecks ? .on : .off
             for item in item(3, in: menu)?.submenu?.items ?? [] {
                 if let raw = item.representedObject as? String, let choice = AppearanceMode(rawValue: raw) { item.title = choice.title }
@@ -247,6 +273,11 @@ struct SettingsMenuButton: NSViewRepresentable {
                 if let raw = item.representedObject as? String, let choice = UnitBasis(rawValue: raw) {
                     item.title = choice == .decimal ? L("units.decimal") : L("units.binary")
                     item.toolTip = choice == .decimal ? L("units.decimal_hint") : L("units.binary_hint")
+                }
+            }
+            for option in item(17, in: menu)?.submenu?.items ?? [] {
+                if let mode = (option.representedObject as? String).flatMap(EnergyMode.init) {
+                    option.title = mode.title; option.state = settings.energyMode == mode ? .on : .off
                 }
             }
             for item in item(5, in: menu)?.submenu?.items ?? [] {
@@ -273,6 +304,7 @@ struct SettingsMenuButton: NSViewRepresentable {
             item(1, in: menu)?.state = settings.loginState == .requiresApproval ? .mixed : (settings.loginEnabled ? .on : .off)
             item(1, in: menu)?.toolTip = settings.loginState == .requiresApproval ? L("login.approval_hint") : nil
         }
+        @objc private func copyDiagnostics() { settings.copyDiagnostics() }
         @objc private func selectLanguage(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? String, let choice = AppLanguage(rawValue: raw) else { return }
             settings.language = choice
@@ -280,6 +312,10 @@ struct SettingsMenuButton: NSViewRepresentable {
         @objc private func selectAppearance(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? String, let mode = AppearanceMode(rawValue: raw) else { return }
             settings.appearanceMode = mode
+        }
+        @objc private func selectEnergyMode(_ sender: NSMenuItem) {
+            guard let raw = sender.representedObject as? String, let mode = EnergyMode(rawValue: raw) else { return }
+            settings.energyMode = mode
         }
         @objc private func selectRefreshInterval(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? Int, let interval = RefreshInterval(rawValue: raw) else { return }

@@ -152,10 +152,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var outsideMonitor: Any?
     private var keyMonitor: Any?
     private var timer: Timer?
+    private var samplingSuspended = false
     private var terminationSource: DispatchSourceSignal?
     private let statusResize = StatusItemResizeGate()
     private var statusMask: StatusImageMask?
     private var statusCanvasSize: NSSize?
+    private var lastDisplayKey: [String]?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Avoid duplicate readouts if the app is opened twice.
@@ -201,7 +203,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.layout.isVisible = false
         hosting = NSHostingController(rootView: DetailView(model: model))
         panel = DetailPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.onHide = { [weak self] in self?.model.layout.isVisible = false }
+        panel.onHide = { [weak self] in
+            guard let self else { return }
+            self.model.layout.isVisible = false
+            self.restartSamplingTimer()
+        }
         panel.autorecalculatesKeyViewLoop = true
         panel.title = "Neylu"
         panel.hidesOnDeactivate = false
@@ -258,8 +264,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(hideDetails), name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(hideDetails), name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        model.settings.diagnosticsProvider = { [weak model = model] in
+            guard let model else { return "Neylu" }
+            return Diagnostics.report(reading: model.reading, settings: model.settings,
+                historyAvailable: model.historyStorageAvailable, detailsVisible: model.layout.isVisible)
+        }
         model.onSettingsChange = { [weak self] in self?.applySettings() }
-        model.settings.onMenuBarChange = { [weak self] in self?.applyMenuBarConfiguration() }
+        model.settings.onMenuBarChange = { [weak self] in self?.applyMenuBarConfiguration(); self?.restartSamplingTimer() }
         model.settings.onAppearanceChange = { [weak self] in self?.applyAppearance() }
         model.settings.onRefreshIntervalChange = { [weak self] in self?.restartSamplingTimer() }
         model.settings.onLanguageChange = { [weak self] in
@@ -301,8 +312,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.model.reading = reading
             self.updateMeter()
         }
-        update()
         restartSamplingTimer()
+        update()
         if !CommandLine.arguments.contains("--screenshot-mode") {
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -331,15 +342,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(prepareForSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(wake), name: NSWorkspace.didWakeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(powerStateChanged), name: .NSProcessInfoPowerStateDidChange, object: nil)
     }
     private func restartSamplingTimer() {
         timer?.invalidate()
-        let interval = model.settings.refreshInterval.seconds
+        guard !samplingSuspended else { return }
+        sampling.demand = SamplingDemand(details: model.layout.isVisible,
+            systemDisk: model.settings.menuBarConfiguration.visibleMetrics.contains(.disk))
+        let interval = model.settings.energyMode.interval(requested: model.settings.refreshInterval.seconds,
+            detailsVisible: model.layout.isVisible, lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
         let replacement = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.update(recordHistory: true) }
-        replacement.tolerance = min(0.5, interval * 0.1)
+        replacement.tolerance = min(1, interval * 0.1)
         timer = replacement
         RunLoop.main.add(replacement, forMode: .common)
     }
+    @objc private func powerStateChanged() { DispatchQueue.main.async { [weak self] in self?.restartSamplingTimer() } }
     @objc private func accessibilityDisplayChanged() {
         (panel?.contentView as? DetailSurfaceContainer)?.refreshAccessibility()
         if #available(macOS 26.0, *), let glass = panel?.contentView?.subviews.first as? AdaptiveGlassView { glass.updateMaterialTint() }
@@ -355,6 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyMenuBarConfiguration()
     }
     private func applyMenuBarConfiguration() {
+        lastDisplayKey = nil
         meter.configuration = model.settings.menuBarConfiguration
         guard let button = item.button else { return }
         let width = MeterView.meterWidth(for: model.basis, configuration: meter.configuration)
@@ -398,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = button.bounds.size
         guard size.width > 0, size.height > 0, size != statusCanvasSize else { return }
         statusCanvasSize = size // Set before assigning image, which may trigger layout.
-        button.image = mask.render(in: size)
+        button.image = mask.imageForStatusButton(in: size)
     }
     @objc func showMenuBarSettings(_ sender: Any?) {
         panel.orderOut(nil)
@@ -417,16 +435,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMeter() {
         meter.reading = model.reading
         guard !statusResize.isActive else { return }
+        let key = meter.displayKey
+        guard key != lastDisplayKey else { return }
+        lastDisplayKey = key
         setStatusContent(meter.makeStatusImage(), width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration))
         item.button?.setAccessibilityLabel(meter.accessibilitySummary)
     }
     func applicationWillTerminate(_ notification: Notification) {
+        samplingSuspended = true
+        timer?.invalidate()
         statusResize.cancel()
         sampling.suspend()
         model.saveHistoryNow()
         MainActor.assumeIsolated { backgroundUpdates.stop() }
     }
     @objc private func prepareForSleep() {
+        samplingSuspended = true
         timer?.invalidate()
         sampling.suspend()
         MainActor.assumeIsolated { backgroundUpdates.stop() }
@@ -434,10 +458,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.saveHistoryNow()
     }
     @objc private func wake() {
+        samplingSuspended = false
+        restartSamplingTimer()
         if !CommandLine.arguments.contains("--screenshot-mode") { MainActor.assumeIsolated { backgroundUpdates.start() } }
         if CommandLine.arguments.contains("--screenshot-mode") { update() }
         else { sampling.resumeAfterWake() }
-        restartSamplingTimer()
     }
     @MainActor private lazy var updates = UpdateController()
     @MainActor private lazy var backgroundUpdates = BackgroundUpdateChecker(settings: model.settings)
@@ -493,6 +518,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = item.button, let statusWindow = button.window else { return }
         if panel.isVisible { panel.orderOut(nil); return }
         model.layout.isVisible = true
+        model.updateChartWindow(at: Date())
+        restartSamplingTimer()
+        sampling.sample()
         hosting.view.layoutSubtreeIfNeeded()
         model.settings.refreshLoginStatus()
         let mouse = NSEvent.mouseLocation

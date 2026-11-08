@@ -9,6 +9,14 @@ final class MonitorModel: ObservableObject {
     @Published var memoryHistory: [MemoryPoint] = []
     @Published var networkHistory: [NetworkPoint] = []
     @Published private(set) var chartWindow = HistoryWindow(now: Date())
+    @Published private(set) var chartCPU: [CPUPoint] = []
+    @Published private(set) var chartGPU: [GPUPoint] = []
+    @Published private(set) var chartMemory: [MemoryPoint] = []
+    @Published private(set) var chartNetwork: [NetworkPoint] = []
+    @Published private(set) var chartGPURendererAvailable = false
+    @Published private(set) var chartGPUTilerAvailable = false
+    @Published private(set) var isHistoryLoading = false
+    private var historyGeneration = 0
     private var chartStart: Date?
     let settings = MonitorSettings()
     let layout = DetailLayout()
@@ -24,12 +32,14 @@ final class MonitorModel: ObservableObject {
         set { settings.onChange = newValue }
     }
     private var historyStore: HistoryStore?
+    var historyStorageAvailable: Bool { historyStore != nil }
     private var historySaveMessage: String?
-    init(persistHistory: Bool = true) {
+    init(persistHistory: Bool = true, historyURL: URL? = nil) {
         settings.onError = { [weak self] message in self?.alerts.message = message }
+        settings.onHistoryRangeChange = { [weak self] in self?.reloadHistory() }
         if !persistHistory || CommandLine.arguments.contains("--screenshot-mode") { return }
         do {
-            let store = try HistoryStore()
+            let store = try HistoryStore(url: historyURL ?? HistoryStore.defaultURL)
             let now = Date()
             let saved = try store.load(since: now.addingTimeInterval(-HistoryWindow.duration), now: now)
             history = saved.cpu
@@ -43,13 +53,56 @@ final class MonitorModel: ObservableObject {
             }
             store.onRecovery = { [weak self] in DispatchQueue.main.async { self?.historySaveRecovered() } }
         } catch { self.error = L("history.unavailable_prefix") + error.localizedDescription }
+        if settings.historyRange != .twoMinutes { reloadHistory() }
+    }
+    func reloadHistory() {
+        historyGeneration += 1
+        let token = historyGeneration
+        chartStart = nil
+        let cutoff = Date().addingTimeInterval(-settings.historyRange.duration)
+        history.removeAll { $0.timestamp < cutoff }
+        gpuHistory.removeAll { $0.timestamp < cutoff }
+        memoryHistory.removeAll { $0.timestamp < cutoff }
+        networkHistory.removeAll { $0.timestamp < cutoff }
+        updateChartWindow(at: Date())
+        guard let store = historyStore else { return }
+        let now = Date(), span = settings.historyRange.duration
+        isHistoryLoading = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                try store.flush()
+                let saved = try store.load(since: now.addingTimeInterval(-span), now: now)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.historyGeneration == token else { return }
+                    func merged<T>(_ old: [T], _ live: [T], _ key: KeyPath<T, Date>) -> [T] {
+                        let cutoff = Date().addingTimeInterval(-span)
+                        var records: [Date: T] = [:]
+                        for point in old + live where point[keyPath: key] >= cutoff { records[point[keyPath: key]] = point }
+                        return records.keys.sorted().compactMap { records[$0] }
+                    }
+                    self.history = merged(saved.cpu, self.history, \.timestamp)
+                    self.gpuHistory = merged(saved.gpu, self.gpuHistory, \.timestamp)
+                    self.memoryHistory = merged(saved.memory, self.memoryHistory, \.timestamp)
+                    self.networkHistory = merged(saved.network, self.networkHistory, \.timestamp)
+                    self.chartStart = nil
+                    self.updateChartWindow(at: Date())
+                    self.isHistoryLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.historyGeneration == token else { return }
+                    self.isHistoryLoading = false
+                    self.error = L("history.unavailable_prefix") + error.localizedDescription
+                }
+            }
+        }
     }
     func recordCPU(_ reading: Reading, at now: Date = Date()) {
         let cpu = reading.cpuReady ? CPUPoint(timestamp: now, user: reading.cpuUser, system: reading.cpuSystem) : nil
         let gpu = reading.gpuReady ? GPUPoint(timestamp: now, total: reading.gpu, renderer: reading.gpuRenderer, tiler: reading.gpuTiler) : nil
         let memory = reading.memoryReady ? MemoryPoint(timestamp: now, used: reading.usedMemory, total: reading.totalMemory) : nil
         let network = reading.networkReady ? NetworkPoint(timestamp: now, download: reading.download, upload: reading.upload) : nil
-        let cutoff = now.addingTimeInterval(-HistoryWindow.duration)
+        let cutoff = now.addingTimeInterval(-settings.historyRange.duration)
         history.removeAll { $0.timestamp < cutoff }
         gpuHistory.removeAll { $0.timestamp < cutoff }
         memoryHistory.removeAll { $0.timestamp < cutoff }
@@ -67,14 +120,25 @@ final class MonitorModel: ObservableObject {
         }
     }
     func updateChartWindow(at now: Date) {
-        // Keep the recording origin after pruning so a full chart stays at 120s.
+        // Keep the recording origin after pruning so a full chart retains the selected duration.
         // Every chart uses this same range and the latest sampling timestamp.
         if chartStart == nil {
             chartStart = [history.first?.timestamp, gpuHistory.first?.timestamp,
                           memoryHistory.first?.timestamp, networkHistory.first?.timestamp]
                 .compactMap { $0 }.filter { $0 <= now }.min()
         }
-        chartWindow = HistoryWindow(earliest: chartStart, now: now)
+        chartWindow = HistoryWindow(earliest: chartStart, now: now, duration: settings.historyRange.duration)
+        guard layout.isVisible else { return }
+        let cpu = history.filter { $0.timestamp >= chartWindow.start && $0.timestamp <= now }
+        let gpu = gpuHistory.filter { $0.timestamp >= chartWindow.start && $0.timestamp <= now }
+        let memory = memoryHistory.filter { $0.timestamp >= chartWindow.start && $0.timestamp <= now }
+        let network = networkHistory.filter { $0.timestamp >= chartWindow.start && $0.timestamp <= now }
+        chartCPU = HistoryWindow.reducedChannels(cpu, channels: 3) { [$0.user, $0.system, $0.user + $0.system] }
+        chartGPU = HistoryWindow.reducedChannels(gpu, channels: 3) { [$0.total, $0.renderer ?? 0, $0.tiler ?? 0] }
+        chartGPURendererAvailable = !gpu.isEmpty && gpu.allSatisfy { $0.renderer != nil }
+        chartGPUTilerAvailable = !gpu.isEmpty && gpu.allSatisfy { $0.tiler != nil }
+        chartMemory = HistoryWindow.reduced(memory, timestamp: \.timestamp) { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
+        chartNetwork = HistoryWindow.reducedChannels(network, channels: 2) { [$0.download, $0.upload] }
     }
 
     func saveHistoryNow() {
@@ -126,6 +190,12 @@ struct MenuBarLayout {
 struct StatusImageMask {
     let image: NSImage
     let contentWidth: CGFloat
+    func imageForStatusButton(in size: NSSize) -> NSImage {
+        // At the settled width AppKit can center vertically without another
+        // pair of bitmap copies. During resizing retain the left-anchored mask.
+        if abs(size.width - contentWidth) < 0.01 && image.size.width == contentWidth { return image }
+        return render(in: size)
+    }
     func render(in size: NSSize) -> NSImage {
         let result = NSImage(size: size)
         for scale in [CGFloat(1), CGFloat(2)] {
@@ -195,6 +265,12 @@ final class MeterView: NSView {
     }
     private func updateAccessibility() {
         (superview as? NSStatusBarButton)?.setAccessibilityLabel(accessibilitySummary)
+    }
+    var displayKey: [String] {
+        [basis.rawValue] + configuration.visibleMetrics.flatMap { metric -> [String] in
+            if metric == .network { return [metric.rawValue, formattedRate(reading.upload, basis: basis, ready: reading.networkReady), formattedRate(reading.download, basis: basis, ready: reading.networkReady)] }
+            return [metric.rawValue, Self.metricValue(metric, reading: reading)]
+        }
     }
     func makeStatusImage() -> NSImage {
         if configuration.visibleMetrics.isEmpty {
@@ -332,7 +408,7 @@ struct CPUChart: View {
     var accessibilityTitle = L("chart.cpu.label")
     var body: some View {
         Canvas { context, size in
-            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end)
+            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end, duration: window.maximumDuration)
             for segment in segments {
                 guard let first = segment.first, let last = segment.last else { continue }
                 let start = size.width * window.fraction(first.timestamp)
@@ -362,14 +438,16 @@ struct GPUChart: View {
     let points: [GPUPoint]
     let window: HistoryWindow
     var language = AppLanguage.load()
+    var rendererAvailable = true
+    var tilerAvailable = true
     var body: some View {
         Canvas { context, size in
-            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end)
+            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end, duration: window.maximumDuration)
             let colors: [Color] = [.blue, .red, .teal]
             // Only stack metrics actually present throughout the visible history.
             // Missing hardware counters never become a zero-height synthetic band.
             let visible = segments.flatMap { $0 }
-            let series = (0..<3).filter { index in !visible.isEmpty && visible.allSatisfy { $0.chartValues[index] != nil } }
+            let series = (0..<3).filter { index in !visible.isEmpty && (index != 1 || rendererAvailable) && (index != 2 || tilerAvailable) && visible.allSatisfy { $0.chartValues[index] != nil } }
             for segment in segments {
                 for (band, metric) in series.enumerated() {
                     let color = colors[metric]
@@ -436,11 +514,7 @@ struct DetailView: View {
     }
     private var contents: some View {
         VStack(spacing: 0) {
-            Text(L("overview.title"))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 14)
+            HistoryRangeControl(model: model, settings: settings).padding(.bottom, 14)
             ScrollView(.vertical) {
                 MetricsOverviewView(model: model, settings: model.settings)
                     .fixedSize(horizontal: false, vertical: true)
@@ -459,6 +533,21 @@ struct DetailView: View {
     }
 }
 
+private struct HistoryRangeControl: View {
+    @ObservedObject var model: MonitorModel
+    @ObservedObject var settings: MonitorSettings
+    var body: some View {
+        HStack {
+            Text(L("overview.title")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Spacer()
+            if model.isHistoryLoading { ProgressView().controlSize(.mini) }
+            Picker(L("history.range"), selection: $settings.historyRange) {
+                ForEach(HistoryRange.allCases, id: \.rawValue) { Text($0.title).tag($0) }
+            }.pickerStyle(.menu).labelsHidden().fixedSize().font(.system(size: 11))
+        }
+    }
+}
+
 struct MetricsOverviewView: View {
     @ObservedObject var model: MonitorModel
     @ObservedObject var settings: MonitorSettings
@@ -470,7 +559,7 @@ struct MetricsOverviewView: View {
         self._inspection = State(initialValue: inspection)
     }
     @State private var inspection: Date?
-    private var inspectionDates: [Date] { model.history.map(\.timestamp) + model.gpuHistory.map(\.timestamp) + model.memoryHistory.map(\.timestamp) + model.networkHistory.map(\.timestamp) }
+    private var inspectionDates: [Date] { model.chartCPU.map(\.timestamp) + model.chartGPU.map(\.timestamp) + model.chartMemory.map(\.timestamp) + model.chartNetwork.map(\.timestamp) }
     private var r: Reading { model.reading }
     private let columnGap: CGFloat = 22
     var body: some View {
@@ -491,6 +580,7 @@ struct MetricsOverviewView: View {
                 externalDisk(volume)
             }
         }
+        .onChange(of: settings.historyRange) { _ in inspection = nil }
         .alert(String(format: L("disk.eject_failed_format"), diskActions.failure?.name ?? ""),
                isPresented: Binding(get: { diskActions.failure != nil }, set: { if !$0 { diskActions.failure = nil } })) {
             Button(L("action.ok"), role: .cancel) { diskActions.failure = nil }
@@ -503,8 +593,8 @@ struct MetricsOverviewView: View {
             heading(MenuBarMetric.cpu.symbol, "CPU", value: percent(r.cpu, ready: r.cpuReady))
             fact(L("metrics.temperature"), value: r.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? (r.cpuTemperatureSupported ? L("metrics.unavailable") : L("metrics.unsupported")))
                 .help(r.cpuTemperature != nil ? L("temperature.sensor_hint") : (r.cpuTemperatureSupported ? L("temperature.no_sensor") : L("temperature.unsupported_device")))
-            CPUChart(points: model.history, window: model.chartWindow)
-                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.cpu(model.history, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
+            CPUChart(points: model.chartCPU, window: model.chartWindow)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.cpu(model.chartCPU, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
             VStack(spacing: 5) {
                 breakdown(L("metrics.user"), color: .blue, value: r.cpuUser, ready: r.cpuReady)
                 breakdown(L("metrics.system"), color: .red, value: r.cpuSystem, ready: r.cpuReady)
@@ -516,8 +606,8 @@ struct MetricsOverviewView: View {
         VStack(spacing: 7) {
             heading(MenuBarMetric.gpu.symbol, "GPU", value: percent(r.gpu, ready: r.gpuReady))
             fact(L("metrics.cores"), value: r.gpuCores.map { L10n.cores($0) } ?? "—")
-            GPUChart(points: model.gpuHistory, window: model.chartWindow, language: settings.language)
-                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.gpu(model.gpuHistory, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
+            GPUChart(points: model.chartGPU, window: model.chartWindow, language: settings.language, rendererAvailable: model.chartGPURendererAvailable, tilerAvailable: model.chartGPUTilerAvailable)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.gpu(model.chartGPU, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
                 .overlay { if !r.gpuReady { Text(L("metrics.gpu_unavailable")).font(.system(size: 10)).foregroundStyle(.secondary) } }
             VStack(spacing: 5) {
                 breakdown(L("metrics.gpu_utilization"), color: .blue, value: r.gpu, ready: r.gpuReady)
@@ -533,8 +623,8 @@ struct MetricsOverviewView: View {
                 fact(L("metrics.used"), value: r.memoryReady ? formattedMemory(r.usedMemory, basis: model.basis) : "—")
                 fact(L("metrics.total"), value: r.memoryReady ? formattedMemory(r.totalMemory, basis: model.basis) : "—")
             }.frame(height: 42)
-            MemoryChart(points: model.memoryHistory, window: model.chartWindow, language: settings.language)
-                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.memory(model.memoryHistory, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            MemoryChart(points: model.chartMemory, window: model.chartWindow, language: settings.language)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.memory(model.chartMemory, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact(L("metrics.available"), value: r.memoryReady ? formattedMemory(r.totalMemory - min(r.totalMemory, r.usedMemory), basis: model.basis) : "—")
         }
     }
@@ -545,8 +635,8 @@ struct MetricsOverviewView: View {
                 rateRow(L("metrics.download"), symbol: "arrow.down", bytes: r.download)
                 rateRow(L("metrics.upload"), symbol: "arrow.up", bytes: r.upload)
             }.frame(height: 42)
-            NetworkChart(points: model.networkHistory, window: model.chartWindow, language: settings.language)
-                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.network(model.networkHistory, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
+            NetworkChart(points: model.chartNetwork, window: model.chartWindow, language: settings.language)
+                .chartInspection(date: $inspection, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.network(model.chartNetwork, at: inspection, basis: model.basis, window: model.chartWindow)).frame(height: 36).padding(.top, 12).padding(.bottom, 10)
             fact("IP", value: r.address, truncatesValue: true).textSelection(.enabled).help(r.address)
         }
     }

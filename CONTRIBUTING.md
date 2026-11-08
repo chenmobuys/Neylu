@@ -26,6 +26,8 @@ python3 -m unittest discover -s Tests -p 'test_*.py' -v
 UI 优先使用系统组件、语义颜色和系统材质。应用标识统一为 `io.github.chenmobuys.Neylu`，不添加旧品牌的偏好、登录项或历史迁移兼容。
 历史数据、证书、私钥和构建输出不得提交。诊断信息可能包含 IP 或本机路径，分享前请脱敏。
 
+能耗代理指标可运行 `./test-performance.sh --idle-process --warmup 10 --duration 60 --history`，使用私有临时数据库，不读取用户历史；`--energy-mode on` 测省电模式，`--interval 1|2|5|10` 选择设定间隔，`--show-details` 可人工验证真实展开状态。输出含 CPU、内存、进程唤醒和磁盘 I/O，不等于功率或电池续航；同口径多次比较后再报告结论。
+
 默认图标源为 `Assets/AppIcon-v5-vector.svg`，每次构建从矢量直接渲染各个尺寸。
 温度与 IOKit 统计需要真机验证；CI 的虚拟机不能证明全部传感器兼容。
 

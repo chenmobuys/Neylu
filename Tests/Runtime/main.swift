@@ -5,6 +5,88 @@ import ServiceManagement
 L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources"))
 
 if CommandLine.arguments.contains("--self-test") {
+    let energyDefaults = UserDefaults(suiteName: "Neylu-efficiency-" + UUID().uuidString)!
+    precondition(EnergyMode.load(from: energyDefaults) == .off)
+    energyDefaults.set("invalid", forKey: "energyMode")
+    precondition(EnergyMode.load(from: energyDefaults) == .off)
+    EnergyMode.automatic.save(to: energyDefaults)
+    precondition(EnergyMode.load(from: energyDefaults) == .automatic)
+    energyDefaults.removeObject(forKey: "energyMode")
+    for interval in RefreshInterval.allCases {
+        for mode in EnergyMode.allCases {
+            precondition(mode.interval(requested: interval.seconds, detailsVisible: true, lowPower: true) == interval.seconds)
+            precondition(mode.interval(requested: interval.seconds, detailsVisible: false, lowPower: false) == (mode == .on ? max(5, interval.seconds) : interval.seconds))
+            precondition(mode.interval(requested: interval.seconds, detailsVisible: false, lowPower: true) == (mode == .off ? interval.seconds : max(5, interval.seconds)))
+        }
+    }
+    var addressCache = NetworkAddressCache()
+    var addressReads = 0
+    func readAddress() -> String { addressReads += 1; return "address-" + String(addressReads) }
+    precondition(addressCache.address(for: "en0", now: 0, read: readAddress) == "address-1")
+    precondition(addressCache.address(for: "en0", now: 9, read: readAddress) == "address-1")
+    precondition(addressCache.address(for: "en0", now: 10, read: readAddress) == "address-2")
+    precondition(addressCache.address(for: "en1", now: 11, read: readAddress) == "address-3")
+    addressCache.invalidate()
+    precondition(addressCache.address(for: "en1", now: 12, read: readAddress) == "address-4")
+    let cachedMeter = MeterView(frame: .zero)
+    cachedMeter.configuration = MenuBarConfiguration(items: [MenuBarItem(metric: .cpu, enabled: true)])
+    cachedMeter.reading = Reading(cpu: 20.01, cpuReady: true)
+    let oldKey = cachedMeter.displayKey
+    cachedMeter.reading = Reading(cpu: 20.02, memory: 99, cpuReady: true)
+    precondition(cachedMeter.displayKey == oldKey)
+    cachedMeter.reading = Reading(cpu: 21, cpuReady: true)
+    precondition(cachedMeter.displayKey != oldKey)
+    print("PASS: all energy policies preserve foreground refresh, address cache expires/invalidates and unchanged displayed values have stable render keys")
+    do {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Neylu-range-runtime-" + UUID().uuidString)
+        let url = folder.appendingPathComponent("history.sqlite")
+        let defaults = UserDefaults.standard
+        let oldRange = defaults.object(forKey: "historyRange")
+        defer {
+            if let oldRange { defaults.set(oldRange, forKey: "historyRange") } else { defaults.removeObject(forKey: "historyRange") }
+            try? FileManager.default.removeItem(at: folder)
+        }
+        HistoryRange.twoMinutes.save()
+        let now = Date()
+        do {
+            let store = try HistoryStore(url: url)
+            for index in 0..<60 {
+                let date = now.addingTimeInterval(Double(index - 59) * 60)
+                store.append(HistorySample(timestamp: date, cpu: CPUPoint(timestamp: date, user: 20, system: 5), gpu: nil))
+            }
+            try store.flush()
+        }
+        let model = MonitorModel(historyURL: url)
+        precondition(model.history.count <= 3)
+        model.settings.historyRange = .oneHour
+        let live = Reading(cpu: 30, cpuUser: 25, cpuSystem: 5, cpuReady: true)
+        model.recordCPU(live, at: Date())
+        let deadline = Date().addingTimeInterval(3)
+        while model.isHistoryLoading && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(!model.isHistoryLoading && model.history.count >= 59)
+        precondition(model.history.last!.user == 25 && model.chartCPU.count <= 240)
+        model.settings.historyRange = .fifteenMinutes
+        model.settings.historyRange = .twoMinutes
+        let shortDeadline = Date().addingTimeInterval(3)
+        while model.isHistoryLoading && Date() < shortDeadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        precondition(model.chartWindow.maximumDuration == 120 && model.history.allSatisfy { $0.timestamp >= Date().addingTimeInterval(-121) })
+        let before = model.chartCPU
+        model.layout.isVisible = false
+        model.recordCPU(live, at: Date().addingTimeInterval(1))
+        precondition(model.chartCPU == before)
+        model.layout.isVisible = true
+        model.updateChartWindow(at: Date().addingTimeInterval(1))
+        precondition(model.chartCPU.last!.user == 25)
+        print("PASS: asynchronous range loading merges live samples, stale requests cannot overwrite a newer range and hidden plots skip preparation")
+    } catch { fatalError("History range integration failed: \(error)") }
+    let backgroundSampler = Sampler()
+    backgroundSampler.setDemand(SamplingDemand(details: false, systemDisk: false))
+    let backgroundReading = backgroundSampler.sample()
+    precondition(backgroundReading.memoryReady && backgroundReading.cpuTemperature == nil && !backgroundReading.diskReady && !backgroundReading.diskActivityReady && backgroundReading.externalDisks.isEmpty)
+    backgroundSampler.setDemand(.full)
+    let firstForeground = backgroundSampler.sample()
+    precondition(!firstForeground.diskActivityReady)
+    print("PASS: background demand omits detail-only hardware while foreground disk rates establish a fresh baseline")
     let inspectStart = Date(timeIntervalSince1970: 1000)
     let inspectPoints = [CPUPoint(timestamp: inspectStart, user: 8, system: 5), CPUPoint(timestamp: inspectStart.addingTimeInterval(2), user: 20, system: 10)]
     precondition(ChartReadout.nearest(inspectPoints, at: inspectStart.addingTimeInterval(1.8), timestamp: \.timestamp) == inspectPoints[1])
@@ -341,14 +423,29 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(focusWindow.firstResponder === focusControl)
     focusWindow.close()
     print("PASS: utility windows avoid automatic link/control focus on opening, preserve Tab navigation and retain focus when brought forward")
+    let privateReading = Reading(cpuTemperature: 52, gpuRenderer: nil, gpuTiler: 0, gpuReady: true,
+        diskName: "PRIVATE-VOLUME", interface: "PRIVATE-INTERFACE", address: "198.51.100.42", cpuReady: true)
+    let englishDomain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+    UserDefaults.standard.setVolatileDomain(["appLanguage": "en"], forName: UserDefaults.argumentDomain)
+    let diagnostics = Diagnostics.report(reading: privateReading, settings: MonitorSettings(), historyAvailable: true,
+        bundle: appBundle, hardware: "Apple Test CPU", system: OperatingSystemVersion(majorVersion: 12, minorVersion: 7, patchVersion: 0))
+    precondition(diagnostics.contains("Apple Test CPU") && diagnostics.contains("macOS 12.7.0"))
+    precondition(!diagnostics.contains("PRIVATE-VOLUME") && !diagnostics.contains("PRIVATE-INTERFACE") && !diagnostics.contains("198.51.100.42"))
+    precondition(!diagnostics.contains("/Users/") && !diagnostics.contains("52"))
+    let clipboard = NSPasteboard.withUniqueName()
+    precondition(Diagnostics.copy(diagnostics, to: clipboard))
+    precondition(clipboard.string(forType: .string) == diagnostics)
+    clipboard.releaseGlobally()
+    UserDefaults.standard.setVolatileDomain(englishDomain, forName: UserDefaults.argumentDomain)
+    print("PASS: diagnostics allowlist excludes addresses, names, paths and monitoring values and copies to an isolated pasteboard")
     let settingsCoordinator = SettingsMenuButton.Coordinator(settings: visibilityModel.settings)
     visibilityModel.settings.availableUpdateVersion = "0.1.0-alpha.10"
     let badgeMenu = settingsCoordinator.makeMenu(pullsDown: false)
     settingsCoordinator.updateTitles(badgeMenu)
     precondition(badgeMenu.item(withTag: 13)!.title.contains("0.1.0-alpha.10"))
     precondition(settingsCoordinator.item(15, in: badgeMenu)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
-    precondition(badgeMenu.items.filter { !$0.isSeparatorItem }.map(\.tag) == [6,3,16,10,13,14,11,12])
-    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,2,5,1,15])
+    precondition(badgeMenu.items.filter { !$0.isSeparatorItem }.map(\.tag) == [6,3,16,10,13,14,18,11,12])
+    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,17,2,5,1,15])
     let nestedPreferences = settingsCoordinator.item(16, in: badgeMenu)!.submenu!
     let nestedRefresh = settingsCoordinator.item(4, in: badgeMenu)!
     settingsCoordinator.menuNeedsUpdate(nestedPreferences)
@@ -453,7 +550,7 @@ if CommandLine.arguments.contains("--self-test") {
         // Exercise contraction as well as expansion with the actual native cell.
         for extra: CGFloat in [68, 34, 0, 34, 68, 0] {
             nativeButton.frame.size.width = source.size.width + extra
-            let result = mask.render(in: nativeButton.bounds.size)
+            let result = mask.imageForStatusButton(in: nativeButton.bounds.size)
             nativeButton.image = result
             let actualRect = nativeButton.cell!.imageRect(forBounds: nativeButton.bounds)
             precondition(abs(actualRect.minX - nativeButton.bounds.minX) < 0.5)
@@ -487,14 +584,15 @@ if CommandLine.arguments.contains("--self-test") {
     alignmentButton.image = alignmentSource
     precondition(alignmentButton.cell!.imageRect(forBounds: alignmentButton.bounds).minX == 58)
     let alignmentMask = StatusImageMask(image: alignmentSource, contentWidth: 64)
-    alignmentButton.image = alignmentMask.render(in: alignmentButton.bounds.size)
+    alignmentButton.image = alignmentMask.imageForStatusButton(in: alignmentButton.bounds.size)
     alignmentButton.postsFrameChangedNotifications = true
     let alignmentObserver = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: alignmentButton, queue: nil) { _ in
-        alignmentButton.image = alignmentMask.render(in: alignmentButton.bounds.size)
+        alignmentButton.image = alignmentMask.imageForStatusButton(in: alignmentButton.bounds.size)
     }
     for width: CGFloat in [180, 140, 100, 64, 48, 100, 180] {
         alignmentButton.frame.size.width = width
-        precondition(alignmentButton.image!.size == alignmentButton.bounds.size)
+        precondition(alignmentButton.image!.size.width == alignmentButton.bounds.width)
+        precondition(abs(alignmentButton.cell!.imageRect(forBounds: alignmentButton.bounds).midY - alignmentButton.bounds.midY) < 0.5)
         let bitmap = alignmentButton.bitmapImageRepForCachingDisplay(in: alignmentButton.bounds)!
         alignmentButton.cacheDisplay(in: alignmentButton.bounds, to: bitmap)
         var left = bitmap.pixelsWide, right = -1

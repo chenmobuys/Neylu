@@ -136,3 +136,38 @@
 "menu.preferences" = "Preferences";
 "login.change_failed" = "Could not change the login item. Move Neylu to Applications and try again.";
 "login.approval_hint" = "Allow Neylu in System Settings → General → Login Items.";
+
+"menu.energy_mode" = "Energy Saving";
+"energy.off" = "Off";
+"energy.automatic" = "Follow System Low Power Mode";
+"energy.on" = "On";
+
+"history.range" = "Chart Range";
+"history.range.two_minutes" = "2 minutes";
+"history.range.fifteen_minutes" = "15 minutes";
+"history.range.one_hour" = "1 hour";
+
+"menu.copy_diagnostics" = "Copy Diagnostics";
+"diagnostics.copied" = "Copied";
+"diagnostics.available" = "Available";
+"diagnostics.not_available" = "Unavailable or not sampled";
+"diagnostics.version" = "Version";
+"diagnostics.build" = "Build";
+"diagnostics.system" = "System";
+"diagnostics.hardware" = "Processor";
+"diagnostics.architecture" = "Architecture";
+"diagnostics.requested_interval" = "Configured refresh interval";
+"diagnostics.effective_interval" = "Current sampling interval";
+"diagnostics.low_power" = "System Low Power Mode";
+"diagnostics.history" = "History storage";
+"diagnostics.cpu" = "CPU counters";
+"diagnostics.gpu" = "GPU utilization";
+"diagnostics.renderer" = "GPU renderer counter";
+"diagnostics.tiler" = "GPU tiler counter";
+"diagnostics.memory" = "Memory counters";
+"diagnostics.network" = "Network counters";
+"diagnostics.temperature" = "Temperature sensor";
+"diagnostics.disk" = "Disk I/O counters";
+"diagnostics.privacy" = "No IP addresses, interface names, disk names, local paths, logs, or monitoring values are included.";
+
+"energy.hint" = "When active, sample at intervals of at least 5 seconds in the background; opening the overview restores your configured interval.";

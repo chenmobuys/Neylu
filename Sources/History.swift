@@ -43,26 +43,65 @@ struct HistorySample {
     }
 }
 
+enum HistoryRange: Int, CaseIterable {
+    case twoMinutes = 120, fifteenMinutes = 900, oneHour = 3600
+    var duration: TimeInterval { TimeInterval(rawValue) }
+    var localizationKey: String {
+        switch self { case .twoMinutes: return "history.range.two_minutes"; case .fifteenMinutes: return "history.range.fifteen_minutes"; case .oneHour: return "history.range.one_hour" }
+    }
+    var title: String { L(localizationKey) }
+    static func load(from defaults: UserDefaults = .standard) -> Self {
+        Self(rawValue: defaults.integer(forKey: "historyRange")) ?? .twoMinutes
+    }
+    func save(to defaults: UserDefaults = .standard) { defaults.set(rawValue, forKey: "historyRange") }
+}
+
 struct HistoryWindow {
     static let duration: TimeInterval = 120
     let start: Date
     let end: Date
+    let maximumDuration: TimeInterval
 
-    init(earliest: Date? = nil, now: Date) {
+    init(earliest: Date? = nil, now: Date, duration: TimeInterval = Self.duration) {
+        maximumDuration = duration.isFinite && duration >= 1 ? duration : Self.duration
         end = now
         let span: TimeInterval
         if let earliest, earliest <= now {
-            span = min(Self.duration, max(1, now.timeIntervalSince(earliest)))
+            span = min(maximumDuration, max(1, now.timeIntervalSince(earliest)))
         } else {
-            span = Self.duration
+            span = maximumDuration
         }
         start = now.addingTimeInterval(-span)
+    }
+
+    // Select actual extrema from each bucket; never invent average samples.
+    // Endpoints and both low/high values survive, with at most 240 points.
+    static func reduced<T>(_ points: [T], timestamp: KeyPath<T, Date>, value: (T) -> Double, limit: Int = 240) -> [T] {
+        reducedChannels(points, channels: 1, limit: limit) { [value($0)] }
+    }
+    static func reducedChannels<T>(_ points: [T], channels: Int, limit: Int = 240, values: (T) -> [Double]) -> [T] {
+        guard points.count > limit else { return points }
+        precondition(channels > 0 && limit >= 2 + 2 * channels)
+        let samples = points.map(values)
+        precondition(samples.allSatisfy { $0.count == channels })
+        let buckets = max(1, (limit - 2) / (2 * channels))
+        var indices: Set<Int> = [0, points.count - 1]
+        for bucket in 0..<buckets {
+            let start = 1 + bucket * (points.count - 2) / buckets
+            let end = 1 + (bucket + 1) * (points.count - 2) / buckets
+            guard start < end else { continue }
+            for channel in 0..<channels {
+                if let low = (start..<end).min(by: { samples[$0][channel] < samples[$1][channel] }) { indices.insert(low) }
+                if let high = (start..<end).max(by: { samples[$0][channel] < samples[$1][channel] }) { indices.insert(high) }
+            }
+        }
+        return indices.sorted().map { points[$0] }
     }
 
     func fraction(_ date: Date) -> Double {
         min(1, max(0, date.timeIntervalSince(start) / end.timeIntervalSince(start)))
     }
-    static func segments<T>(_ points: [T], timestamp: KeyPath<T, Date>, now: Date) -> [[T]] {
+    static func segments<T>(_ points: [T], timestamp: KeyPath<T, Date>, now: Date, duration: TimeInterval = Self.duration) -> [[T]] {
         let cutoff = now.addingTimeInterval(-duration)
         let visible = points.filter { $0[keyPath: timestamp] >= cutoff && $0[keyPath: timestamp] <= now }
             .sorted { $0[keyPath: timestamp] < $1[keyPath: timestamp] }

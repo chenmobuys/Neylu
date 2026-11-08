@@ -11,33 +11,63 @@ func cpuSeconds() -> Double {
     getrusage(RUSAGE_SELF, &usage)
     return Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1_000_000
 }
-if CommandLine.arguments.contains("--idle-process") {
-    // Run the actual delegate and normal two-second sampling timer in isolation.
-    // The injected model never opens the user's history database.
-    let delegate = AppDelegate(model: MonitorModel(persistHistory: false))
-    NSApp.delegate = delegate
-    var startCPU = 0.0
-    var startWall = 0.0
-    Timer.scheduledTimer(withTimeInterval: 1, repeats: false) { _ in
-        startCPU = cpuSeconds()
-        startWall = ProcessInfo.processInfo.systemUptime
+func argument(_ name: String) -> String? {
+    guard let index = CommandLine.arguments.firstIndex(of: name), index + 1 < CommandLine.arguments.count else { return nil }
+    return CommandLine.arguments[index + 1]
+}
+func usageInfo() -> rusage_info_v4? {
+    var info = rusage_info_v4()
+    let result = withUnsafeMutablePointer(to: &info) { pointer in
+        pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(getpid(), RUSAGE_INFO_V4, $0) }
     }
-    Timer.scheduledTimer(withTimeInterval: 16, repeats: false) { _ in
+    return result == 0 ? info : nil
+}
+if CommandLine.arguments.contains("--idle-process") {
+    let duration = Double(argument("--duration") ?? "15") ?? 15
+    let warmup = Double(argument("--warmup") ?? "1") ?? 1
+    let interval = Int(argument("--interval") ?? "2") ?? 2
+    let mode = EnergyMode(rawValue: argument("--energy-mode") ?? "off") ?? .off
+    precondition((1...600).contains(duration) && (0.1...60).contains(warmup) && RefreshInterval(rawValue: interval) != nil)
+    UserDefaults.standard.setVolatileDomain(["refreshInterval": interval, "energyMode": mode.rawValue,
+        "historyRange": 120, "automaticUpdateChecks": false], forName: UserDefaults.argumentDomain)
+    let persistent = CommandLine.arguments.contains("--history")
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Neylu-energy-" + UUID().uuidString)
+    let model = MonitorModel(persistHistory: persistent, historyURL: folder.appendingPathComponent("history.sqlite"))
+    precondition(!persistent || model.historyStorageAvailable, "Temporary history store failed to open")
+    let delegate = AppDelegate(model: model)
+    NSApp.delegate = delegate
+    var startCPU = 0.0, startWall = 0.0
+    var initialUsage: rusage_info_v4?
+    Timer.scheduledTimer(withTimeInterval: warmup, repeats: false) { _ in
+        startCPU = cpuSeconds(); startWall = ProcessInfo.processInfo.systemUptime; initialUsage = usageInfo()
+    }
+    Timer.scheduledTimer(withTimeInterval: warmup + duration, repeats: false) { _ in
         let elapsed = ProcessInfo.processInfo.systemUptime - startWall
         let consumed = cpuSeconds() - startCPU
-        let ps = Process()
-        ps.executableURL = URL(fileURLWithPath: "/bin/ps")
-        ps.arguments = ["-o", "rss=", "-p", String(getpid())]
-        let pipe = Pipe()
-        ps.standardOutput = pipe
-        try! ps.run()
-        let residentKB = Int(String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))!
-        ps.waitUntilExit()
-        let report: [String: Any] = ["elapsed_seconds": elapsed, "cpu_percent_of_one_core": consumed / elapsed * 100,
-            "resident_memory_bytes": residentKB * 1024, "history_persistence": false,
-            "scope": "actual app delegate, menu bar rendering and default sampling timer; 15-second idle sample, not Energy Impact or power in watts"]
+        let finalUsage = usageInfo()
+        var report: [String: Any] = ["elapsed_seconds": elapsed, "warmup_seconds": warmup,
+            "cpu_percent_of_one_core": consumed / elapsed * 100, "history_persistence": persistent,
+            "requested_interval_seconds": interval, "energy_mode": mode.rawValue,
+            "effective_interval_seconds": mode.interval(requested: TimeInterval(interval), detailsVisible: CommandLine.arguments.contains("--show-details"), lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled),
+            "details_visible": CommandLine.arguments.contains("--show-details"),
+            "scope": "isolated actual app delegate and normal sampling; optional temporary SQLite; not Energy Impact or power in watts"]
+        if persistent {
+            let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+            report["history_file_bytes"] = files.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+        }
+        if let finalUsage {
+            report["resident_memory_bytes"] = finalUsage.ri_resident_size
+            report["physical_footprint_bytes"] = finalUsage.ri_phys_footprint
+            if let initialUsage {
+                report["interrupt_wakeups"] = finalUsage.ri_interrupt_wkups - initialUsage.ri_interrupt_wkups
+                report["package_idle_wakeups"] = finalUsage.ri_pkg_idle_wkups - initialUsage.ri_pkg_idle_wkups
+                report["disk_bytes_read"] = finalUsage.ri_diskio_bytesread - initialUsage.ri_diskio_bytesread
+                report["disk_bytes_written"] = finalUsage.ri_diskio_byteswritten - initialUsage.ri_diskio_byteswritten
+            }
+        }
         print(String(data: try! JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]), encoding: .utf8)!)
         delegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        try? FileManager.default.removeItem(at: folder)
         exit(0)
     }
     NSApp.run()

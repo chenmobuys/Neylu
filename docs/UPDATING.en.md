@@ -44,8 +44,14 @@ The command lists matching installers in Downloads; compare the file you intend 
 
 ## Data and compatibility
 
-Monitoring data stays local; there is no telemetry. CPU, GPU, memory, and network history is retained for 24 hours in `~/Library/Application Support/Neylu/history.sqlite`. The directory uses mode 0700; the database and WAL use 0600. See the [metrics reference — Chinese](METRICS.md) for definitions.
+Monitoring data stays local; there is no telemetry. CPU, GPU, memory, and network history is retained for 24 hours in `~/Library/Application Support/Neylu/history.sqlite`. The directory uses mode 0700; the database and WAL use 0600. Choose two-minute, fifteen-minute, or one-hour views at the top of the overview. Rendering is reduced, while SQLite retains the original records. See the [metrics reference — Chinese](METRICS.md) for definitions.
 
 Releases from alpha.5 support macOS 12 and later; earlier builds require macOS 13. Both architectures have CI builds and regression checks. Sensors have been tested on an M3 Max; macOS 12 has not been tested on a physical device, and other hardware may lack some readings.
 
 When reporting an issue, include the Neylu version, macOS version, chip, and error text. Redact IP addresses and local paths from diagnostics. Report security issues privately as described in the [security policy](../SECURITY.md).
+
+## Energy saving and diagnostics
+
+**Preferences → Energy Saving** offers Off (the default), Follow System Low Power Mode, and On. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only temperature and disk I/O sampling pauses, and reopening establishes fresh baselines.
+
+Choose **Copy Diagnostics** in the settings menu or About window to copy version, system, processor, refresh policy, and metric availability. IP addresses, interface/disk names, paths, logs, and actual monitoring values are excluded; nothing is sent automatically. Some fields normally show “Unavailable or not sampled” while details are closed; that does not establish that the hardware is unsupported.

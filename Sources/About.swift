@@ -7,11 +7,14 @@ final class AboutController: NSWindowController {
     private let version = NSTextField(labelWithString: "")
     private let summary = NSTextField(wrappingLabelWithString: "")
     private let license = NSButton()
+    private let diagnostics = NSButton()
+    private let settings: MonitorSettings
     private let appBundle: Bundle
     private var subscriptions = Set<AnyCancellable>()
 
     init(settings: MonitorSettings, bundle: Bundle = .main) {
         appBundle = bundle
+        self.settings = settings
         let window = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 250),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
@@ -31,12 +34,14 @@ final class AboutController: NSWindowController {
         let github = NSButton(title: "GitHub", target: self, action: #selector(openGitHub))
         license.target = self
         license.action = #selector(openLicense)
-        for button in [github, license] {
+        diagnostics.target = self
+        diagnostics.action = #selector(copyDiagnostics)
+        for button in [github, license, diagnostics] {
             button.isBordered = false
             button.font = .systemFont(ofSize: 11)
             button.contentTintColor = .linkColor
         }
-        let links = NSStackView(views: [github, license])
+        let links = NSStackView(views: [github, license, diagnostics])
         links.orientation = .horizontal
         links.spacing = 18
         let stack = NSStackView(views: [icon, name, version, summary, links])
@@ -79,8 +84,14 @@ final class AboutController: NSWindowController {
         version.stringValue = String(format: L("about.version_format"), release, build)
         summary.stringValue = L("app.description")
         license.title = L("about.license")
+        diagnostics.title = L("menu.copy_diagnostics")
         window?.contentView?.needsLayout = true
         window?.contentView?.layoutSubtreeIfNeeded()
+    }
+    @objc private func copyDiagnostics() {
+        guard settings.copyDiagnostics() else { return }
+        diagnostics.title = L("diagnostics.copied")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.refreshText() }
     }
     @objc private func openGitHub() {
         NSWorkspace.shared.open(URL(string: "https://github.com/chenmobuys/Neylu")!)

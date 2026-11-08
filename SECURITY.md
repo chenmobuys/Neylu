@@ -10,6 +10,8 @@
 
 请勿公开密钥、证书、私人诊断或尚未修复的漏洞细节。优先使用仓库 **Security → Advisories → Private vulnerability reporting** 私下报告；若入口不可用，请先联系维护者取得私下沟通方式。
 
+诊断复制采用字段白名单，不序列化监控对象、偏好集合或错误日志；不含 IP、网卡/磁盘名、路径或实际读数，只在用户点击时写入剪贴板，不自动发送。
+
 ## English
 
 The latest published release is maintained. Monitoring data stays local, with no telemetry, uploads, or administrator privileges. Static appcast checks run daily by default and can be disabled. Manual checks and installer downloads also use GitHub’s static content and HTTPS asset services. The client does not use the GitHub REST API or require an account or token.
@@ -19,3 +21,5 @@ The updater validates SHA-256, code signatures, app identifier, full version, ar
 Installers, Homebrew, and release automation do not disable Gatekeeper/SIP or automatically clear quarantine on the installed app. Since alpha.6, after the user requests an update, the installed app and copied helper are verified before quarantine is removed only from that private helper copy. The source app, downloaded candidate, and unrelated metadata remain unchanged. Users decide whether to allow an unnotarized first launch; see [updating and troubleshooting](docs/UPDATING.en.md).
 
 Do not disclose credentials, certificates, private diagnostics, or details of unfixed vulnerabilities publicly. Prefer **Security → Advisories → Private vulnerability reporting** in this repository. If it is unavailable, contact the maintainer to establish a private reporting channel first.
+
+Diagnostics use an explicit field allowlist, never serialization of monitoring objects, preference collections, or error logs. IP addresses, interface/disk names, paths, and actual readings are excluded. The clipboard is written only on user action; nothing is transmitted automatically.

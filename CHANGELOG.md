@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Reduce background hardware polling, cache GPU core counts and display-only network addresses, and skip unchanged menu bar images and hidden plot preparation. Preserve continuous CPU/GPU/memory/network history and establish fresh disk I/O baselines on reopening.
+- Add optional energy saving (off by default), including following system Low Power Mode. While active, closed-overview sampling uses at least five-second intervals; opening the overview restores the configured interval.
+- Add persistent 2-minute, 15-minute and 1-hour history views, asynchronous loading with live-sample merging and stale-request protection, and bounded multi-channel extrema rendering using actual samples.
+- Add Copy Diagnostics to the menu and About window using a privacy allowlist; synchronize English, Simplified Chinese, README and detailed documentation. Extend the performance harness with temporary history storage, configurable timing, process wakeups and disk I/O.
+- 减少后台硬件轮询，缓存 GPU 核心数和仅用于显示的网络地址；跳过不变的菜单栏位图及隐藏图表点准备。持续记录 CPU/GPU/内存/网络历史，重新打开详情时重建磁盘读写基线。
+- 增加默认关闭的可选省电模式，可跟随系统低电量模式；生效时后台采样至少五秒一次，打开详情恢复设定间隔。
+- 增加跨重启保存的两分钟、十五分钟、一小时历史范围，后台读取并合并实时采样，拒绝过期请求覆盖新范围；使用真实采样的多通道极值绘图，限制图表点数。
+- 菜单与关于窗口增加白名单诊断复制，同步中英文及文档；性能工具支持临时历史数据库、可配置时长、进程唤醒和磁盘 I/O 测量。
+
 - Simplify and align the English and Chinese READMEs, move detailed update guidance to paired documents, correct outdated build/security/metrics instructions, and check documentation links, commands and requirements in CI.
 - 精简并统一中英文 README，将详细更新说明移至成对文档，修正过时的构建、安全与指标说明，并在 CI 检查文档链接、命令和系统要求。
 

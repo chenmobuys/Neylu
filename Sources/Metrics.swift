@@ -44,13 +44,26 @@ enum UnitBasis: String, CaseIterable, Identifiable {
 
 // Sampling uses cumulative kernel counters and monotonic elapsed time.
 final class Sampler {
+    private var demand = SamplingDemand.full
+    private var addressCache = NetworkAddressCache()
+    func setDemand(_ value: SamplingDemand) {
+        if !demand.details && value.details {
+            addressCache.invalidate()
+            diskActivityReader.resetBaseline()
+            externalDiskMonitor.invalidate()
+            temperatureReader?.invalidateCache()
+            nextDiskRead = 0
+        }
+        demand = value
+    }
     func resetAfterWake() {
+        addressCache.invalidate()
         previousCPU = nil
         previousNetwork = nil
         nextDiskRead = 0
         diskActivityReader.resetBaseline()
         externalDiskMonitor.invalidate()
-        temperatureReader.invalidateCache()
+        temperatureReader?.invalidateCache()
     }
     private let diskActivityReader = DiskActivityReader()
     private let externalDiskMonitor = ExternalDiskMonitor()
@@ -58,10 +71,10 @@ final class Sampler {
         externalDiskMonitor.invalidate()
         nextDiskRead = 0
         let now = ProcessInfo.processInfo.systemUptime
-        readDisk(into: &reading, now: now)
-        reading.externalDisks = externalDiskMonitor.sample(now: now)
+        if demand.details || demand.systemDisk { readDisk(into: &reading, now: now) }
+        if demand.details { reading.externalDisks = externalDiskMonitor.sample(now: now) }
     }
-    private let temperatureReader = CPUTemperatureReader()
+    private var temperatureReader: CPUTemperatureReader?
     private let accelerator = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOAccelerator"))
     private var diskCache: (name: String, total: UInt64, free: UInt64)?
     private var nextDiskRead: TimeInterval = 0
@@ -117,7 +130,7 @@ final class Sampler {
         let now = ProcessInfo.processInfo.systemUptime
         if let net = networkCounters() {
             result.interface = net.name
-            result.address = interfaceAddress(net.name)
+            if demand.details { result.address = addressCache.address(for: net.name, now: now) { interfaceAddress(net.name) } }
             if let old = previousNetwork, old.name == net.name, now > old.time,
                net.input >= old.input, net.output >= old.output {
                 result.download = Double(net.input - old.input) / (now - old.time)
@@ -127,23 +140,32 @@ final class Sampler {
             previousNetwork = (net.name, net.input, net.output, now)
         } else {
             previousNetwork = nil
+            addressCache.invalidate()
         }
-        result.cpuTemperature = temperatureReader.read(now: now)
-        result.cpuTemperatureSupported = temperatureReader.supportsDevice
         readGPU(into: &result)
-        readDisk(into: &result, now: now)
-        result.externalDisks = externalDiskMonitor.sample(now: now)
-        if let activity = diskActivityReader.sample(now: now) {
-            result.diskRead = activity.read
-            result.diskWrite = activity.write
-            result.diskActivityReady = true
+        if demand.details || demand.systemDisk { readDisk(into: &result, now: now) }
+        if demand.details {
+            let reader = temperatureReader ?? CPUTemperatureReader()
+            temperatureReader = reader
+            result.cpuTemperature = reader.read(now: now)
+            result.cpuTemperatureSupported = reader.supportsDevice
+            result.externalDisks = externalDiskMonitor.sample(now: now)
+            if let activity = diskActivityReader.sample(now: now) {
+                result.diskRead = activity.read
+                result.diskWrite = activity.write
+                result.diskActivityReady = true
+            }
         }
         return result
     }
 
+    private lazy var gpuCoreCount: Int? = {
+        guard accelerator != 0 else { return nil }
+        return (IORegistryEntryCreateCFProperty(accelerator, "gpu-core-count" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? NSNumber)?.intValue
+    }()
     private func readGPU(into reading: inout Reading) {
         guard accelerator != 0 else { return }
-        reading.gpuCores = (IORegistryEntryCreateCFProperty(accelerator, "gpu-core-count" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? NSNumber)?.intValue
+        reading.gpuCores = gpuCoreCount
         guard let stats = IORegistryEntryCreateCFProperty(accelerator, "PerformanceStatistics" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? [String: Any] else { return }
         applyGPUStatistics(stats, to: &reading)
     }

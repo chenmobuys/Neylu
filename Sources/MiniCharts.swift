@@ -6,7 +6,7 @@ struct MemoryChart: View {
     var language = AppLanguage.load()
     var body: some View {
         Canvas { context, size in
-            for segment in HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end) {
+            for segment in HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end, duration: window.maximumDuration) {
                 guard let first = segment.first, let last = segment.last else { continue }
                 var line = Path()
                 for (index, point) in segment.enumerated() {
@@ -34,7 +34,7 @@ struct NetworkChart: View {
     var language = AppLanguage.load()
     var body: some View {
         Canvas { context, size in
-            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end)
+            let segments = HistoryWindow.segments(points, timestamp: \.timestamp, now: window.end, duration: window.maximumDuration)
             let maximum = max(1, segments.flatMap { $0 }.map { max($0.download, $0.upload) }.max() ?? 1) * 1.1
             let middle = size.height / 2
             var baseline = Path()

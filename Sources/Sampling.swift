@@ -2,9 +2,11 @@ import Foundation
 
 protocol MetricSampling: AnyObject {
     func sample() -> Reading
+    func setDemand(_ demand: SamplingDemand)
     func refreshDisks(into reading: inout Reading)
     func resetAfterWake()
 }
+extension MetricSampling { func setDemand(_ demand: SamplingDemand) {} }
 extension Sampler: MetricSampling {}
 
 // Scheduling state and delivery belong to main; the sampler belongs exclusively
@@ -18,6 +20,7 @@ final class SamplingService {
     private var busy = false
     private var suspended = false
     private var generation = 0
+    var demand = SamplingDemand.full
     private var pendingSample = false
     private var pendingHistory = false
     private var pendingReset = false
@@ -60,11 +63,13 @@ final class SamplingService {
         let recordHistory = pendingHistory
         let refreshDisks = pendingDisks
         let token = generation
+        let currentDemand = demand
         pendingDisks = false // A full sample also discovers current disks.
         if fullSample { pendingSample = false; pendingHistory = false; pendingReset = false }
         queue.async { [self] in
             if sampler == nil { sampler = makeSampler() }
             let reader = sampler!
+            reader.setDemand(currentDemand)
             var reading: Reading
             if fullSample {
                 if reset { reader.resetAfterWake() }
