@@ -52,10 +52,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref_name }}
           persist-credentials: false
-      - name: Test and build on native architecture
-        run: |
-          ./build.sh
-          swift test --configuration release
+      - name: Build app on native architecture
+        run: ./build.sh
+      - name: Compile and run Swift Testing
+        run: ./scripts/test-ci.sh
       - name: Sign and notarize stable app
         if: needs.prepare.outputs.channel == 'stable'
         env:

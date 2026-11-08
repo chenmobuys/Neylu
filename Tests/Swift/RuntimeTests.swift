@@ -13,6 +13,7 @@ extension NeyluTests {
 
     let runtimeStarted = ProcessInfo.processInfo.systemUptime
     func report(_ message: String) {
+      TestSupport.progress("[runtime] " + message)
       print(
         String(
           format: "[runtime +%.2fs] %@", ProcessInfo.processInfo.systemUptime - runtimeStarted,

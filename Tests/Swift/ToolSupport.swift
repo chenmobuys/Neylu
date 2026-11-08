@@ -35,8 +35,10 @@ enum ToolRunner {
     }
     task.standardOutput = output
     task.standardError = error
+    TestSupport.progress("[tool] Starting " + command)
     try task.run()
     task.waitUntilExit()
+    TestSupport.progress("[tool] Finished " + command + " (\(task.terminationStatus))")
     return ToolResult(
       status: task.terminationStatus, output: try String(contentsOf: out, encoding: .utf8),
       error: try String(contentsOf: err, encoding: .utf8))

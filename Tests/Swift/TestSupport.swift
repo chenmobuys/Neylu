@@ -12,6 +12,15 @@ enum TestSupport {
   static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     .deletingLastPathComponent().deletingLastPathComponent()
   static let app = root.appendingPathComponent("build/Neylu.app")
+  static func progress(_ message: String) {
+    guard let path = ProcessInfo.processInfo.environment["NEYLU_TEST_PROGRESS"] else { return }
+    let data = Data((message + "\n").utf8)
+    FileHandle.standardError.write(data)
+    guard let file = FileHandle(forWritingAtPath: path) else { return }
+    defer { try? file.close() }
+    file.seekToEndOfFile()
+    file.write(data)
+  }
   static func waitForSignal(_ semaphore: DispatchSemaphore) async -> Bool {
     await withCheckedContinuation { continuation in
       DispatchQueue.global().async {
@@ -20,13 +29,19 @@ enum TestSupport {
     }
   }
   @MainActor static func prepareNativeTests() throws {
+    progress("[native] Preparing AppKit test host")
     try #require(FileManager.default.changeCurrentDirectoryPath(root.path))
     L10n.useResources(at: root.appendingPathComponent("Resources"))
+    progress("[native] Creating NSApplication")
     _ = NSApplication.shared
+    progress("[native] Setting accessory activation policy")
     NSApp.setActivationPolicy(.accessory)
+    progress("[native] Loading bundled application icon")
     let image = try #require(
       NSImage(contentsOf: app.appendingPathComponent("Contents/Resources/AppIcon.icns")))
     image.setName(NSImage.applicationIconName)
+    progress("[native] Setting application icon")
     NSApp.applicationIconImage = image
+    progress("[native] AppKit test host ready")
   }
 }

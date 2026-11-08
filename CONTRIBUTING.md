@@ -48,6 +48,8 @@ Swift Testing 包含文档检查：本地链接和图片、中英文 README 命�
 
 文档预览使用 `./scripts/render-docs.sh /private/tmp/neylu-preview --language zh-Hans`，英文使用 `--language en`。演示夹具位于 `Tests/Support`，仅预览编译启用 `NEYLU_PREVIEW`；发布 App 不提供截图模式、调试报告或自动展开窗口等开发参数。依赖注入接口保留，以便隔离临时数据库、登录服务、网络和快捷键注册边界。
 
+CI 通过 `scripts/test-ci.sh` 先编译测试目标，再运行纯 Swift Testing（不启动空的 XCTest 测试阶段）。执行阶段每 30 秒输出进展，超过 90 秒采集测试子进程堆栈，180 秒仍未完成则失败；此限制不计编译时间、不跳过测试。原生初始化及工具调用进展通过专用临时文件提供，不依赖 SwiftPM 的输出缓冲。
+
 ## 可选集成检查
 
 普通 `swift test` 不访问 GitHub，也不替换已安装应用。以下检查必须显式开启：

@@ -27,11 +27,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Validate shell scripts
-        run: bash -n build.sh test.sh scripts/sign-and-notarize.sh
+        run: bash -n build.sh test.sh scripts/test-ci.sh scripts/sign-and-notarize.sh
       - name: Build
         run: ./build.sh
       - name: Swift Testing
-        run: swift test --configuration release
+        run: ./scripts/test-ci.sh
       - name: Verify bundle
         run: |
           codesign --verify --strict build/Neylu.app
