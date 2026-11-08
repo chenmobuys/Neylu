@@ -6,7 +6,7 @@ struct ShortcutChord: Codable, Equatable {
     let modifiers: UInt32
     let label: String
     var isValid: Bool {
-        key < 128 && ![48, 36, 51, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 117].contains(key) && modifiers & UInt32(controlKey | optionKey) != 0 &&
+        key < 128 && ![48, 36, 51, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 117].contains(key) && (modifiers & UInt32(controlKey | optionKey) != 0 || modifiers & UInt32(cmdKey | shiftKey) == UInt32(cmdKey | shiftKey)) &&
         modifiers & ~UInt32(controlKey | optionKey | cmdKey | shiftKey) == 0 && !label.isEmpty && label.count <= 32
     }
     static func load(from defaults: UserDefaults = .standard) -> Self? {
@@ -69,19 +69,32 @@ final class GlobalShortcut {
 
 final class ShortcutRecorder: NSTextField {
     var recorded: ShortcutChord?
+    var onRecord: (() -> Void)?
+    var onBeginRecording: (() -> Void)?
+    var isRecording = false
+    func beginRecording() {
+        recorded = nil
+        isRecording = true
+        onBeginRecording?()
+        stringValue = L("shortcut.press_keys")
+        window?.makeFirstResponder(self)
+    }
     override var acceptsFirstResponder: Bool { true }
+    override func accessibilityPerformPress() -> Bool { beginRecording(); return true }
     override func becomeFirstResponder() -> Bool { true }
-    override func mouseDown(with event: NSEvent) { window?.makeFirstResponder(self) }
+    override func mouseDown(with event: NSEvent) { beginRecording() }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard window?.firstResponder === self, event.modifierFlags.contains(.control) || event.modifierFlags.contains(.option) else { return false }
+        guard isRecording, window?.firstResponder === self, (event.modifierFlags.contains(.control) || event.modifierFlags.contains(.option) || event.modifierFlags.contains([.command, .shift])) else { return false }
         keyDown(with: event); return true
     }
     override func keyDown(with event: NSEvent) {
+        if !isRecording && event.keyCode == 49 { beginRecording(); return }
         if event.keyCode == 48 { window?.selectNextKeyView(nil); return }
         if event.keyCode == 36 { window?.defaultButtonCell?.performClick(nil); return }
         if event.keyCode == 53 { NSApp.abortModal(); return }
+        guard isRecording else { return }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard flags.contains(.control) || flags.contains(.option), !event.isARepeat,
+        guard flags.contains(.control) || flags.contains(.option) || flags.contains([.command, .shift]), !event.isARepeat,
               let text = event.charactersIgnoringModifiers?.uppercased(), !text.isEmpty,
               ![48, 36, 51, 117, 53].contains(Int(event.keyCode)) else { NSSound.beep(); return }
         var modifiers: UInt32 = 0
@@ -94,25 +107,40 @@ final class ShortcutRecorder: NSTextField {
         let keyLabel = specialKeys[event.keyCode] ?? ((0xF704...0xF71B).contains(scalar) ? "F" + String(scalar - 0xF704 + 1) : text)
         let next = ShortcutChord(key: UInt32(event.keyCode), modifiers: modifiers, label: label + keyLabel)
         guard next.isValid else { return }
-        recorded = next; stringValue = next.label
+        recorded = next; stringValue = next.label; isRecording = false; onRecord?()
     }
 }
 
 extension GlobalShortcut {
-    func configure() {
+    func makeConfigurationAlert() -> NSAlert {
         let alert = NSAlert()
         alert.messageText = L("shortcut.title")
         alert.informativeText = L("shortcut.hint")
-        alert.addButton(withTitle: L("action.ok"))
+        alert.addButton(withTitle: L("action.save"))
         alert.addButton(withTitle: L("action.cancel"))
         alert.addButton(withTitle: L("shortcut.remove"))
         let recorder = ShortcutRecorder(labelWithString: chord?.label ?? L("shortcut.record"))
+        recorder.setAccessibilityRole(.button)
         recorder.setAccessibilityLabel(L("shortcut.title"))
         recorder.setAccessibilityHelp(L("shortcut.hint"))
+        recorder.isBordered = true; recorder.isBezeled = true
+        recorder.bezelStyle = .roundedBezel
+        recorder.drawsBackground = true
+        recorder.backgroundColor = .textBackgroundColor
+        recorder.focusRingType = .exterior
         recorder.alignment = .center; recorder.font = .systemFont(ofSize: 17)
         recorder.frame = NSRect(x: 0, y: 0, width: 300, height: 32)
         alert.accessoryView = recorder
-        alert.window.initialFirstResponder = recorder
+        alert.buttons[0].isEnabled = false
+        alert.buttons[2].isEnabled = chord != nil
+        recorder.onBeginRecording = { [weak alert] in alert?.buttons.first?.isEnabled = false }
+        recorder.onRecord = { [weak alert] in alert?.buttons.first?.isEnabled = true }
+        alert.window.initialFirstResponder = alert.buttons[1]
+        return alert
+    }
+    func configure() {
+        let alert = makeConfigurationAlert()
+        guard let recorder = alert.accessoryView as? ShortcutRecorder else { return }
         NSApp.activate(ignoringOtherApps: true)
         let response = alert.runModal()
         guard response == .alertFirstButtonReturn || response == .alertThirdButtonReturn else { return }

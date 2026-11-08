@@ -28,7 +28,7 @@ Homebrew prints first-launch instructions in both languages with the actual inst
 
 ## Discovery and installer verification
 
-Since alpha.5, the client reads architecture-specific static appcasts, without using the GitHub REST API, an account, or a token. Manual and background checks share in-flight requests and a one-minute cache. Earlier releases use the old endpoint; if they hit its rate limit, update through Homebrew or a DMG.
+Since alpha.5, the client reads architecture-specific static appcasts, without using the GitHub REST API, an account, or a token. Through Alpha 7, manual and background checks share in-flight requests and a one-minute cache; static CDN caching can delay discovery. Starting with alpha.8, manual checks bypass completed cached results, and each feed transfer uses a fresh cache key and requests revalidation. Background checks retain their one-minute cache, and concurrent requests still coalesce. This fix takes effect after alpha.8 or later is installed. Earlier releases use the old endpoint; if they hit its rate limit, update through Homebrew or a DMG.
 
 Installers are hosted on GitHub Releases. The release workflow verifies their digests before writing the appcasts. The updater validates SHA-256, full version, architecture, minimum macOS requirement, app identifier, and code signature. An installation already signed with Developer ID also enforces the Apple signing chain and Team ID. Since alpha.6, the running app and copied helper are verified before quarantine is removed only from the private helper copy; the source app, downloaded candidate, and unrelated metadata remain unchanged.
 
@@ -44,7 +44,7 @@ The command lists matching installers in Downloads; compare the file you intend 
 
 ## Data and compatibility
 
-Monitoring data stays local; there is no telemetry. CPU, GPU, memory, and network history is retained for 24 hours in `~/Library/Application Support/Neylu/history.sqlite`. The directory uses mode 0700; the database and WAL use 0600. Choose two-minute, fifteen-minute, or one-hour views at the top of the overview. Rendering is reduced, while SQLite retains the original records. See the [metrics reference — Chinese](METRICS.md) for definitions.
+Monitoring data stays local; there is no telemetry. CPU, GPU, memory, and network history is retained for 24 hours in `~/Library/Application Support/Neylu/history.sqlite`. The directory uses mode 0700; the database and WAL use 0600. Choose two-minute, fifteen-minute, or one-hour views in Preferences → Chart Time Range. Rendering is reduced, while SQLite retains the original records. See the [metrics reference — Chinese](METRICS.md) for definitions.
 
 Releases from alpha.5 support macOS 12 and later; earlier builds require macOS 13. Both architectures have CI builds and regression checks. Sensors have been tested on an M3 Max; macOS 12 has not been tested on a physical device, and other hardware may lack some readings.
 
@@ -52,16 +52,16 @@ When reporting an issue, include the Neylu version, macOS version, chip, and err
 
 ## Energy saving and diagnostics
 
-**Preferences → Energy Saving** offers Off (the default), Follow System Low Power Mode, and On. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only temperature and disk I/O sampling pauses, and reopening establishes fresh baselines.
+**Preferences → Energy Saving** offers Off (the default), Follow System Low Power Mode, and On. When active, sampling runs at intervals of at least five seconds while the overview is closed; opening it restores the configured interval. Background history continues. Detail-only disk I/O sampling pauses, and reopening establishes fresh baselines. Temperature is sampled when the overview is open or the menu bar temperature item is enabled, at most once every five seconds.
 
 Choose **Copy Diagnostics** in the settings menu or About window to copy version, system, processor, refresh policy, and metric availability. IP addresses, interface/disk names, paths, logs, and actual monitoring values are excluded; nothing is sent automatically. Some fields normally show “Unavailable or not sampled” while details are closed; that does not establish that the hardware is unsupported.
 
 ## Display and chart interaction
 
-**Menu Bar Items…** lets you switch memory from Percentage (the default) to Used Capacity, and network rates from Bytes per Second (the default) to Bits per Second. Decimal/binary units remain independent. These formats affect the menu bar only; details continue to use bytes. Restore Default Layout resets only metric order and visibility, preserving formats, history, and other preferences.
+Menu Bar Items provides a preview and metric visibility/order, with Restore Default Layout beside the metric heading. CPU Temperature is disabled by default and can be enabled and reordered on supported devices; temporary missing readings display “—”. Menu bar memory always shows a percentage with a stable width; used, available, and total capacity remain in the overview. **Preferences → Unit Basis** selects decimal or binary units globally. Network rates always use bytes per second, with no separate bit-rate mode. Restore Default Layout resets only metric order and visibility, preserving history and other preferences.
 
-Click any chart to pin the time range and readouts across all four charts. Background recording and live menu bar values continue. Click again or use the play button at the top to resume live charts. Closing the overview or changing its history range also resumes live charts. Inspection selects actual samples only.
+Click any chart to pin the time range and readouts across all four charts. Background recording and live menu bar values continue. Click again or use the play button at the top to resume live charts. Closing the overview or changing its history range also resumes live charts. Inspection selects actual samples only. Readouts follow the selected time within the plot bounds, and pinned charts display Charts Pinned in the header. Preferences → Chart Time Range offers Last 2 minutes, Last 15 minutes, or Last hour, independently of the refresh interval; the overview header no longer contains a range selector.
 
-**Hide IP Address** masks both the address and its tooltip. The eye button in the network section toggles visibility. This preference persists across launches; copied diagnostics always exclude the IP address.
+The eye button beside the IP address in the overview masks both the address and its tooltip; click it again to reveal them. This preference persists across launches; copied diagnostics always exclude the IP address.
 
-In **Preferences → Global Shortcut…**, record a combination containing Control or Option to show or hide the overview. No shortcut is assigned by default. You can remove it at any time; registration failures preserve the previous shortcut. Shortcuts use physical key positions; after changing keyboard layouts, remove and re-record the shortcut to update its displayed name. Registration uses the system hotkey API, without Accessibility permission or a global keyboard event monitor.
+In **Preferences → Global Shortcut…**, click the recording field, press a combination containing Control, Option, or Command–Shift, and click Save to show or hide the overview. Save remains disabled until a valid combination is recorded. No shortcut is assigned by default. You can remove it at any time; registration failures preserve the previous shortcut. Shortcuts use physical key positions; after changing keyboard layouts, remove and re-record the shortcut to update its displayed name. Registration uses the system hotkey API, without Accessibility permission or a global keyboard event monitor.

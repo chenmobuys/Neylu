@@ -4,8 +4,8 @@ import SystemConfiguration
 import IOKit
 
 struct Reading {
+    var capabilities: MetricCapabilities?
     var cpuTemperature: Double?
-    var cpuTemperatureSupported = true
     var cpu: Double = 0
     var cpuUser: Double = 0
     var cpuSystem: Double = 0
@@ -45,8 +45,10 @@ enum UnitBasis: String, CaseIterable, Identifiable {
 // Sampling uses cumulative kernel counters and monotonic elapsed time.
 final class Sampler {
     private var demand = SamplingDemand.full
+    private var capabilities = MetricCapabilities.basic
     private var addressCache = NetworkAddressCache()
     func setDemand(_ value: SamplingDemand) {
+        if !demand.needsTemperature && value.needsTemperature { temperatureReader?.invalidateCache() }
         if !demand.details && value.details {
             addressCache.invalidate()
             diskActivityReader.resetBaseline()
@@ -57,13 +59,13 @@ final class Sampler {
         demand = value
     }
     func resetAfterWake() {
+        temperatureReader = nil // Re-discover exposed sensor keys after wake.
         addressCache.invalidate()
         previousCPU = nil
         previousNetwork = nil
         nextDiskRead = 0
         diskActivityReader.resetBaseline()
         externalDiskMonitor.invalidate()
-        temperatureReader?.invalidateCache()
     }
     private let diskActivityReader = DiskActivityReader()
     private let externalDiskMonitor = ExternalDiskMonitor()
@@ -89,6 +91,15 @@ final class Sampler {
 
     func sample() -> Reading {
         var result = Reading()
+        // Probe sensor keys once even when temperature is not selected, so the
+        // settings list never requires enabling an unsupported item to discover it.
+        if temperatureReader == nil {
+            let reader = CPUTemperatureReader()
+            temperatureReader = reader
+            if reader.supportsDevice, reader.read(now: ProcessInfo.processInfo.systemUptime) != nil {
+                capabilities.menuMetrics.insert(.temperature)
+            }
+        }
         var cpu = host_cpu_load_info()
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
         let cpuStatus = withUnsafeMutablePointer(to: &cpu) { ptr in
@@ -96,7 +107,9 @@ final class Sampler {
                 host_statistics(hostPort, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
+        if cpuStatus == KERN_NOT_SUPPORTED { capabilities.menuMetrics.remove(.cpu) }
         if cpuStatus == KERN_SUCCESS {
+            if !capabilities.supports(.cpu) { capabilities.menuMetrics.insert(.cpu) }
             let ticks = [cpu.cpu_ticks.0, cpu.cpu_ticks.1, cpu.cpu_ticks.2, cpu.cpu_ticks.3]
             if let old = previousCPU {
                 let delta = zip(ticks, old).map { UInt64($0 &- $1) }
@@ -118,7 +131,9 @@ final class Sampler {
                 host_statistics64(hostPort, HOST_VM_INFO64, $0, &vmCount)
             }
         }
+        if vmStatus == KERN_NOT_SUPPORTED { capabilities.menuMetrics.remove(.memory) }
         if vmStatus == KERN_SUCCESS {
+            if !capabilities.supports(.memory) { capabilities.menuMetrics.insert(.memory) }
             // App memory (anonymous minus purgeable), wired and compressed pages.
             // File-backed cache remains available for reuse, as in Activity Monitor.
             let appPages = UInt64(vm.internal_page_count) - min(UInt64(vm.internal_page_count), UInt64(vm.purgeable_count))
@@ -144,11 +159,13 @@ final class Sampler {
         }
         readGPU(into: &result)
         if demand.details || demand.systemDisk { readDisk(into: &result, now: now) }
-        if demand.details {
+        if demand.needsTemperature {
             let reader = temperatureReader ?? CPUTemperatureReader()
             temperatureReader = reader
             result.cpuTemperature = reader.read(now: now)
-            result.cpuTemperatureSupported = reader.supportsDevice
+            if result.cpuTemperature != nil, !capabilities.supports(.temperature) { capabilities.menuMetrics.insert(.temperature) }
+        }
+        if demand.details {
             result.externalDisks = externalDiskMonitor.sample(now: now)
             if let activity = diskActivityReader.sample(now: now) {
                 result.diskRead = activity.read
@@ -156,12 +173,19 @@ final class Sampler {
                 result.diskActivityReady = true
             }
         }
+        if result.gpuReady, !capabilities.supports(.gpu) { capabilities.menuMetrics.insert(.gpu) }
+        if result.gpuRenderer != nil { capabilities.gpuRenderer = true }
+        if result.gpuTiler != nil { capabilities.gpuTiler = true }
+        if result.gpuCores != nil { capabilities.gpuCores = true }
+        if diskActivityReader.sourceAvailable { capabilities.diskActivity = true }
+        result.capabilities = capabilities
         return result
     }
 
     private lazy var gpuCoreCount: Int? = {
         guard accelerator != 0 else { return nil }
-        return (IORegistryEntryCreateCFProperty(accelerator, "gpu-core-count" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? NSNumber)?.intValue
+        guard let count = (IORegistryEntryCreateCFProperty(accelerator, "gpu-core-count" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? NSNumber)?.intValue, count > 0 else { return nil }
+        return count
     }()
     private func readGPU(into reading: inout Reading) {
         guard accelerator != 0 else { return }

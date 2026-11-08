@@ -24,13 +24,10 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     private let sectionLabel = NSTextField(labelWithString: "")
     private let helpLabel = NSTextField(labelWithString: "")
     private let savedLabel = NSTextField(labelWithString: "")
-    private let memoryFormat = NSPopUpButton()
-    private let networkFormat = NSPopUpButton()
-    private let memoryLabel = NSTextField(labelWithString: "")
-    private let networkLabel = NSTextField(labelWithString: "")
-    private let privacy = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let restore = NSButton()
     private var subscriptions = Set<AnyCancellable>()
+    private var rowsHeight: NSLayoutConstraint!
+    private var items: [MenuBarItem] { model.availableMenuBarItems }
     private var selectedMetric: MenuBarMetric?
     private static let dragType = NSPasteboard.PasteboardType("io.github.chenmobuys.Neylu.menuBarMetric")
 
@@ -53,6 +50,7 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
+        stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         surface.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -81,16 +79,18 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             content.addSubview(preview)
             preview.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
         }
-        for (label, control, tag) in [(memoryLabel, memoryFormat, 0), (networkLabel, networkFormat, 1)] {
-            control.tag = tag; control.target = self; control.action = #selector(changeFormat(_:))
-            let row = NSStackView(views: [label, NSView(), control])
-            row.orientation = .horizontal
-            stack.addArrangedSubview(row)
-            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        }
-        privacy.target = self; privacy.action = #selector(togglePrivacy)
-        stack.addArrangedSubview(privacy)
-        stack.addArrangedSubview(sectionLabel)
+        restore.target = self; restore.action = #selector(restoreLayout)
+        restore.isBordered = false
+        restore.font = .systemFont(ofSize: 11)
+        restore.controlSize = .small
+        restore.contentTintColor = .secondaryLabelColor
+        restore.image = NSImage(systemSymbolName: "arrow.counterclockwise", accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: 11, weight: .regular))
+        restore.imagePosition = .imageLeading
+        let sectionHeader = NSStackView(views: [sectionLabel, NSView(), restore])
+        sectionHeader.orientation = .horizontal
+        sectionHeader.alignment = .centerY
+        stack.addArrangedSubview(sectionHeader)
+        sectionHeader.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         table.headerView = nil
         table.style = .inset
         table.selectionHighlightStyle = .none
@@ -117,15 +117,13 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         scroll.documentView = table
         stack.addArrangedSubview(scroll)
         scroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        scroll.heightAnchor.constraint(equalToConstant: 236).isActive = true
+        rowsHeight = scroll.heightAnchor.constraint(equalToConstant: CGFloat(items.count) * 43 + 21)
+        rowsHeight.isActive = true
         let footer = NSStackView(views: [helpLabel, NSView(), savedLabel])
         footer.orientation = .horizontal
         footer.distribution = .fill
         stack.addArrangedSubview(footer)
         footer.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        restore.target = self; restore.action = #selector(restoreLayout)
-        restore.bezelStyle = .rounded
-        stack.addArrangedSubview(restore)
         refreshControls()
         window.setContentSize(NSSize(width: 380, height: surface.fittingSize.height))
         window.center()
@@ -134,14 +132,11 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
             self.preview.reading = reading
             self.preview.setAccessibilityLabel(self.preview.accessibilitySummary)
         }.store(in: &subscriptions)
-        model.settings.$menuBarConfiguration.dropFirst().sink { [weak self] _ in
+        model.$capabilities.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.refreshControls() }
         }.store(in: &subscriptions)
-        model.settings.$menuBarFormats.dropFirst().sink { [weak self] _ in
-            DispatchQueue.main.async { self?.refreshPreview() }
-        }.store(in: &subscriptions)
-        model.settings.$hideNetworkAddress.dropFirst().sink { [weak self] hidden in
-            DispatchQueue.main.async { self?.privacy.state = hidden ? .on : .off }
+        model.settings.$menuBarConfiguration.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async { self?.refreshControls() }
         }.store(in: &subscriptions)
         model.settings.$basis.dropFirst().sink { [weak self] _ in
             DispatchQueue.main.async { self?.refreshPreview() }
@@ -162,9 +157,8 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         preview.reading = model.reading
         window?.contentView?.layoutSubtreeIfNeeded()
         preview.basis = model.basis
-        preview.formats = model.settings.menuBarFormats
-        preview.configuration = model.settings.menuBarConfiguration
-        let width = MeterView.meterWidth(for: model.basis, configuration: preview.configuration, formats: preview.formats)
+        preview.configuration = model.effectiveMenuBarConfiguration
+        let width = MeterView.meterWidth(for: model.basis, configuration: preview.configuration)
         if let parent = preview.superview {
             preview.frame = NSRect(x: max(0, parent.bounds.width - width), y: (parent.bounds.height - 22) / 2, width: width, height: 22)
         }
@@ -173,16 +167,8 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     }
     private func refreshControls() {
         window?.title = L("menu_bar.title")
-        memoryLabel.stringValue = L("format.memory")
-        networkLabel.stringValue = L("format.network")
-        memoryFormat.removeAllItems(); memoryFormat.addItems(withTitles: [L("format.percent"), L("format.capacity")])
-        networkFormat.removeAllItems(); networkFormat.addItems(withTitles: [L("format.bytes"), L("format.bits")])
-        memoryFormat.selectItem(at: model.settings.menuBarFormats.memoryCapacity ? 1 : 0)
-        networkFormat.selectItem(at: model.settings.menuBarFormats.networkBits ? 1 : 0)
-        memoryFormat.setAccessibilityLabel(L("format.memory")); networkFormat.setAccessibilityLabel(L("format.network"))
-        privacy.title = L("privacy.hide_address"); privacy.state = model.settings.hideNetworkAddress ? .on : .off
         restore.title = L("menu_bar.restore_layout")
-        restore.isEnabled = model.settings.menuBarConfiguration != .defaults
+        restore.isEnabled = model.availableMenuBarItems != model.capabilities.items(.defaults)
         previewLabel.stringValue = L("menu_bar.preview")
         sectionLabel.stringValue = L("menu_bar.visible_metrics")
         helpLabel.stringValue = L("menu_bar.drag_to_reorder") + " · ⌥↑↓"
@@ -191,15 +177,24 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         let selection = selectedMetric
         table.reloadData()
         table.sizeLastColumnToFit()
-        selectedMetric = selection
-        if let metric = selection, let row = model.settings.menuBarConfiguration.items.firstIndex(where: { $0.metric == metric }) {
+        selectedMetric = selection.flatMap { model.capabilities.supports($0) ? $0 : nil }
+        table.deselectAll(nil)
+        if let metric = selectedMetric, let row = items.firstIndex(where: { $0.metric == metric }) {
             table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+        rowsHeight.constant = CGFloat(items.count) * 43 + 21
+        if let window, let surface = window.contentView {
+            surface.layoutSubtreeIfNeeded()
+            let top = window.frame.maxY
+            window.setContentSize(NSSize(width: 380, height: surface.fittingSize.height))
+            window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))
         }
         refreshPreview()
     }
-    func numberOfRows(in tableView: NSTableView) -> Int { model.settings.menuBarConfiguration.items.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { items.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let item = model.settings.menuBarConfiguration.items[row]
+        guard items.indices.contains(row) else { return nil }
+        let item = items[row]
         let check = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleMetric(_:)))
         check.identifier = NSUserInterfaceItemIdentifier(item.metric.rawValue)
         check.state = item.enabled ? .on : .off
@@ -237,7 +232,7 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         ])
         handle.startDrag = { [weak self, weak cell, weak handle] event in
             guard let self, let cell, let handle,
-                  let currentRow = self.model.settings.menuBarConfiguration.items.firstIndex(where: { $0.metric == item.metric }),
+                  let currentRow = self.items.firstIndex(where: { $0.metric == item.metric }),
                   let writer = self.tableView(self.table, pasteboardWriterForRow: currentRow),
                   let bitmap = cell.bitmapImageRepForCachingDisplay(in: cell.bounds) else { return }
             self.selectedMetric = item.metric
@@ -251,34 +246,30 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
         }
         return cell
     }
-    @objc private func changeFormat(_ sender: NSPopUpButton) {
-        if sender.tag == 0 { model.settings.menuBarFormats.memoryCapacity = sender.indexOfSelectedItem == 1 }
-        else { model.settings.menuBarFormats.networkBits = sender.indexOfSelectedItem == 1 }
-    }
-    @objc private func togglePrivacy() { model.settings.hideNetworkAddress = privacy.state == .on }
     @objc private func restoreLayout() {
         selectedMetric = nil; table.deselectAll(nil)
         model.settings.restoreMenuBarLayout()
     }
     @objc private func toggleMetric(_ sender: NSButton) {
-        guard let id = sender.identifier?.rawValue, let metric = MenuBarMetric(rawValue: id) else { return }
+        guard let id = sender.identifier?.rawValue, let metric = MenuBarMetric(rawValue: id), model.capabilities.supports(metric) else { return }
         model.settings.menuBarConfiguration.setEnabled(sender.state == .on, for: metric)
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         let row = table.selectedRow
-        if model.settings.menuBarConfiguration.items.indices.contains(row) {
-            selectedMetric = model.settings.menuBarConfiguration.items[row].metric
+        if items.indices.contains(row) {
+            selectedMetric = items[row].metric
         }
     }
     private func moveSelected(by delta: Int) {
         guard let metric = selectedMetric,
-              let row = model.settings.menuBarConfiguration.items.firstIndex(where: { $0.metric == metric }),
-              model.settings.menuBarConfiguration.items.indices.contains(row + delta) else { return }
-        model.settings.menuBarConfiguration.move(metric, to: delta > 0 ? row + 2 : row - 1)
+              let row = items.firstIndex(where: { $0.metric == metric }),
+              items.indices.contains(row + delta) else { return }
+        model.settings.menuBarConfiguration = model.capabilities.moving(metric, to: delta > 0 ? row + 2 : row - 1, in: model.settings.menuBarConfiguration)
     }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard items.indices.contains(row) else { return nil }
         let item = NSPasteboardItem()
-        item.setString(model.settings.menuBarConfiguration.items[row].metric.rawValue, forType: Self.dragType)
+        item.setString(items[row].metric.rawValue, forType: Self.dragType)
         return item
     }
     func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation operation: NSTableView.DropOperation) -> NSDragOperation {
@@ -288,9 +279,9 @@ final class MenuBarSettingsController: NSWindowController, NSTableViewDataSource
     }
     func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation operation: NSTableView.DropOperation) -> Bool {
         guard (info.draggingSource as? NSTableView) === tableView, operation == .above,
-              let raw = info.draggingPasteboard.string(forType: Self.dragType), let metric = MenuBarMetric(rawValue: raw) else { return false }
+              let raw = info.draggingPasteboard.string(forType: Self.dragType), let metric = MenuBarMetric(rawValue: raw), model.capabilities.supports(metric) else { return false }
         selectedMetric = metric
-        model.settings.menuBarConfiguration.move(metric, to: row)
+        model.settings.menuBarConfiguration = model.capabilities.moving(metric, to: row, in: model.settings.menuBarConfiguration)
         return true
     }
 }

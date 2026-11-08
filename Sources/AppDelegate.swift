@@ -180,9 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = item.button else { return }
         meter = MeterView(frame: NSRect(x: 0, y: 0, width: MeterView.meterWidth(for: model.basis), height: 22))
         meter.basis = model.basis
-        meter.configuration = model.settings.menuBarConfiguration
-        meter.formats = model.settings.menuBarFormats
-        item.length = MeterView.meterWidth(for: model.basis, configuration: meter.configuration, formats: meter.formats)
+        meter.configuration = model.effectiveMenuBarConfiguration
+        item.length = MeterView.meterWidth(for: model.basis, configuration: meter.configuration)
         button.imagePosition = .imageOnly
         // The status window may finish resizing after a new image is assigned.
         // Keep every intermediate frame inside the space AppKit has allocated.
@@ -275,6 +274,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !globalShortcut.set(ShortcutChord.load()) { model.error = L("shortcut.unavailable") }
         model.settings.onConfigureShortcut = { [weak self] in self?.globalShortcut.configure() }
+        model.onCapabilitiesChange = { [weak self] in
+            guard let self else { return }
+            self.applyMenuBarConfiguration()
+            self.restartSamplingTimer()
+            if self.model.effectiveMenuBarConfiguration.visibleMetrics.contains(.temperature), self.model.reading.cpuTemperature == nil {
+                self.sampling.sample()
+            }
+        }
         model.onSettingsChange = { [weak self] in self?.applySettings() }
         model.settings.onMenuBarChange = { [weak self] in
             guard let self else { return }
@@ -346,7 +353,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer?.invalidate()
         guard !samplingSuspended else { return }
         sampling.demand = SamplingDemand(details: model.layout.isVisible,
-            systemDisk: model.settings.menuBarConfiguration.visibleMetrics.contains(.disk))
+            systemDisk: model.effectiveMenuBarConfiguration.visibleMetrics.contains(.disk),
+            temperature: model.effectiveMenuBarConfiguration.visibleMetrics.contains(.temperature))
         let interval = model.settings.energyMode.interval(requested: model.settings.refreshInterval.seconds,
             detailsVisible: model.layout.isVisible, lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
         let replacement = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.update(recordHistory: true) }
@@ -370,10 +378,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private func applyMenuBarConfiguration() {
         lastDisplayKey = nil
-        meter.configuration = model.settings.menuBarConfiguration
-        meter.formats = model.settings.menuBarFormats
+        meter.configuration = model.effectiveMenuBarConfiguration
         guard let button = item.button else { return }
-        let width = MeterView.meterWidth(for: model.basis, configuration: meter.configuration, formats: meter.formats)
+        let width = MeterView.meterWidth(for: model.basis, configuration: meter.configuration)
         if width < item.length {
             // The shorter bitmap fits both the old and new allocations.
             statusResize.cancel()
@@ -430,7 +437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = meter.displayKey
         guard key != lastDisplayKey else { return }
         lastDisplayKey = key
-        setStatusContent(meter.makeStatusImage(), width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration, formats: meter.formats))
+        setStatusContent(meter.makeStatusImage(), width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration))
         item.button?.setAccessibilityLabel(meter.accessibilitySummary)
     }
     func applicationWillTerminate(_ notification: Notification) {

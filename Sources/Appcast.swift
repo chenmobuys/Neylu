@@ -10,6 +10,23 @@ enum Appcast {
         guard ["arm64", "x86_64"].contains(architecture) else { return nil }
         return URL(string: "https://raw.githubusercontent.com/chenmobuys/Neylu/updates/appcast-\(architecture).xml")
     }
+    // A fresh query isolates each feed transfer from immutable-URL CDN caches.
+    // It does not change the repository, branch, architecture or trust boundary.
+    static func downloadURL(for architecture: String, nonce: UUID = UUID()) -> URL? {
+        guard let base = url(for: architecture), var parts = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
+        parts.queryItems = [URLQueryItem(name: "neylu_check", value: nonce.uuidString)]
+        return parts.url
+    }
+    static func acceptsFeedURL(_ candidate: URL) -> Bool {
+        guard var parts = URLComponents(url: candidate, resolvingAgainstBaseURL: false), parts.fragment == nil else { return false }
+        if let query = parts.queryItems {
+            guard query.count == 1, query[0].name == "neylu_check", let value = query[0].value,
+                  let nonce = UUID(uuidString: value), nonce.uuidString == value,
+                  parts.percentEncodedQuery == "neylu_check=" + value else { return false }
+        }
+        parts.query = nil
+        return ["arm64", "x86_64"].compactMap { url(for: $0) }.contains(parts.url)
+    }
     static func releases(from data: Data, architecture: String,
                          system: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) throws -> [GitHubRelease] {
         guard url(for: architecture) != nil, !data.isEmpty, data.count <= limit,
@@ -122,9 +139,9 @@ actor AppcastStore {
     init(clock: @escaping () -> Date = Date.init, fetch: @escaping () async throws -> [GitHubRelease]) {
         self.clock = clock; self.fetch = fetch
     }
-    func load() async throws -> [GitHubRelease] {
+    func load(forceRefresh: Bool = false) async throws -> [GitHubRelease] {
         try Task.checkCancellation()
-        if let (value, date) = cached {
+        if !forceRefresh, let (value, date) = cached {
             let age = clock().timeIntervalSince(date)
             if age >= 0, age < 60 { return value }
         }

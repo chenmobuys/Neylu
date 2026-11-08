@@ -20,12 +20,20 @@ The preview uses demonstration readings. Native materials adapt to the system ap
 
 ## Features
 
-- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show, reorder metrics, and customize memory/network formats.
+- Network, memory, GPU, CPU, and system disk metrics in one menu bar item; choose what to show and reorder metrics.
 - Live charts, CPU temperature on supported hardware, and disk capacity and read/write rates; monitor and eject external drives.
 - Native glass on macOS 26+, system materials on earlier releases, and automatic/light/dark appearance.
 - English and Simplified Chinese; configurable refresh intervals, decimal or binary units, and energy-saving options.
 - Local history retained for 24 hours, with two-minute, fifteen-minute, and one-hour chart views and pinned historical readouts. No telemetry or monitoring-data uploads.
 - Built-in update checks, verified installers, and release notes after upgrades.
+
+## Metric availability
+
+Neylu adapts to the current macOS version, hardware, and accessible data sources. Metrics without a detected supported source are hidden from the menu bar, overview, and selection/reordering list in Menu Bar Items, rather than shown as disabled placeholders.
+
+- CPU temperature requires a readable supported sensor; GPU utilization requires an exposed total-utilization counter. Optional Renderer, Tiler, GPU core-count, and disk I/O fields are also shown only when a source is available. Support varies by device and macOS version.
+- Disconnection, post-wake baseline initialization, and temporary read failures do not establish a lack of support. Previously detected metrics remain visible, with missing readings shown as “—”, never a fabricated zero.
+- Hiding preserves saved visibility, order, and history. Sources are probed at startup, and temperature sensors are checked again after wake; restored sources can reappear.
 
 ## Install
 
@@ -50,8 +58,8 @@ Use your actual installation path. This affects only Neylu; it does not disable 
 ## Use
 
 - Left-click the menu bar readings to open the overview; right-click, or use **…**, to open settings.
-- **Menu Bar Items…** selects and reorders metrics, sets memory/network formats, hides the IP address, or restores the default layout; **Appearance** changes the theme; **Preferences** contains refresh interval, energy saving, units, a global shortcut, language, login, and automatic update checks.
-- Choose a history range at the top of the overview; hover or use Left/Right Arrow keys to inspect real samples; click a chart to pin it, then click again or use the play button to resume live charts. Press Escape to close details and utility windows.
+- **Menu Bar Items…** selects and reorders metrics or restores the default layout; **Appearance** changes the theme; **Preferences** contains refresh interval, energy saving, unit basis, a global shortcut, language, login, and automatic update checks.
+- Choose a chart time range in **Preferences → Chart Time Range**; hover or use Left/Right Arrow keys to inspect real samples; click a chart to pin it, then click again or use the play button to resume live charts. Press Escape to close details and utility windows.
 - Copy diagnostics without IP addresses or paths from the menu or About window. Choose **Check for Updates…**, or update with `brew update && brew upgrade --cask --greedy neylu`.
 
 ## Documentation

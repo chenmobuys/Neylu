@@ -57,7 +57,7 @@
 "menu_bar.show_metric_format" = "显示 %@";
 "menu_bar.startup_disk_usage" = "系统盘占用";
 "menu_bar.title" = "菜单栏";
-"menu_bar.visible_metrics" = "显示指标";
+"menu_bar.visible_metrics" = "菜单栏指标";
 "metrics.available" = "可用";
 "metrics.cores" = "核心";
 "metrics.cores_format" = "%@ 核";
@@ -142,10 +142,10 @@
 "energy.automatic" = "跟随系统低电量模式";
 "energy.on" = "开启";
 
-"history.range" = "图表范围";
-"history.range.two_minutes" = "2 分钟";
-"history.range.fifteen_minutes" = "15 分钟";
-"history.range.one_hour" = "1 小时";
+"history.range" = "图表时间范围";
+"history.range.two_minutes" = "近 2 分钟";
+"history.range.fifteen_minutes" = "近 15 分钟";
+"history.range.one_hour" = "近 1 小时";
 
 "menu.copy_diagnostics" = "复制诊断信息";
 "diagnostics.copied" = "已复制";
@@ -176,17 +176,17 @@
 "chart.toggle_pin" = "固定或恢复图表";
 "privacy.address_hidden" = "IP 地址已隐藏";
 "privacy.toggle_address" = "显示或隐藏 IP 地址";
-"privacy.hide_address" = "隐藏 IP 地址";
-"format.memory" = "内存显示";
-"format.network" = "网速单位";
-"format.percent" = "使用率";
-"format.capacity" = "已用容量";
-"format.bytes" = "字节每秒 · B/s";
-"format.bits" = "比特每秒 · bit/s";
 "menu_bar.restore_layout" = "恢复默认布局";
 "shortcut.title" = "全局快捷键";
 "shortcut.configure" = "全局快捷键…";
-"shortcut.hint" = "按下包含 Control 或 Option 的组合键，用于打开或关闭详情。快捷键按物理键位保存。";
+"shortcut.hint" = "点击输入框，按下组合键（例如 ⌥⌘N 或 ⌘⇧N），再点“保存”。快捷键用于打开或关闭详情。";
 "shortcut.remove" = "移除快捷键";
-"shortcut.record" = "按下组合键";
+"shortcut.record" = "点击录入快捷键";
 "shortcut.unavailable" = "无法注册此快捷键，请选择其他组合。";
+
+"metrics.cpu_temperature" = "CPU 温度";
+"chart.pinned" = "图表已固定";
+"action.save" = "保存";
+"shortcut.press_keys" = "请按下组合键…";
+
+"history.range_hint" = "选择图表显示的历史范围；数据不足时按已有采样展开。";

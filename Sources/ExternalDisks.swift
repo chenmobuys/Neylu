@@ -10,6 +10,7 @@ struct ExternalDiskReading: Identifiable {
     var read: Double = 0
     var write: Double = 0
     var activityReady = false
+    var activitySupported = false
 }
 
 struct MountedExternalDisk {
@@ -52,6 +53,7 @@ final class ExternalDiskMonitor {
                 reading.write = rates.write
                 reading.activityReady = true
             }
+            reading.activitySupported = reader.sourceAvailable
             return reading
         }
     }

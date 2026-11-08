@@ -115,6 +115,19 @@ for arch in ["arm64", "x86_64"] { expect(UpdateDownload.allowed(Appcast.url(for:
 for bad in ["https://api.github.com/repos/chenmobuys/Neylu/releases", "https://raw.githubusercontent.com/other/repo/updates/appcast-arm64.xml", "https://raw.githubusercontent.com/chenmobuys/Neylu/main/appcast-arm64.xml", Appcast.url(for: "arm64")!.absoluteString + "?other=1"] {
     expect(!UpdateDownload.allowed(URL(string: bad)!), "REST fallback or foreign static feed allowed")
 }
+let nonce = UUID(uuidString: "4D18119E-D07B-4C27-95DC-A83678EF0044")!
+for arch in ["arm64", "x86_64"] {
+    let fresh = Appcast.downloadURL(for: arch, nonce: nonce)!
+    expect(UpdateDownload.allowed(fresh), "Fresh feed URL rejected")
+    expect(fresh.query == "neylu_check=" + nonce.uuidString, "Cache-isolating feed query missing")
+    expect(Appcast.downloadURL(for: arch) != Appcast.downloadURL(for: arch), "New checks reuse the same CDN cache key")
+    let base = Appcast.url(for: arch)!.absoluteString
+    for suffix in ["?neylu_check=invalid", "?neylu_check=", "?neylu_check=" + nonce.uuidString + "&other=1",
+                   "?neylu_check=" + nonce.uuidString + "&neylu_check=" + nonce.uuidString,
+                   "?neylu_check=" + nonce.uuidString + "#fragment", "#fragment"] {
+        expect(!UpdateDownload.allowed(URL(string: base + suffix)!), "Feed URL validation was weakened")
+    }
+}
 print("PASS real publisher XML/client contract, both architectures, stable/preview channels, XML safety, namespaced checksums and minimum macOS")
 
 final class AppcastTestClock {
@@ -169,11 +182,25 @@ try asyncUpdatesTest {
     _ = try await store.load()
     calls = await probe.calls
     expect(calls == 1, "Fresh cache did not suppress redundant download")
+    _ = try await store.load(forceRefresh: true)
+    calls = await probe.calls
+    expect(calls == 2, "Manual refresh reused a completed cached result")
     clock.advance(61)
     _ = try await store.load()
     calls = await probe.calls
-    expect(calls == 2, "Expired cache did not refresh")
+    expect(calls == 3, "Expired cache did not refresh")
 
+    let staleProbe = AppcastFetchProbe()
+    let changing = AppcastStore {
+        let call = await staleProbe.begin()
+        return call == 1 ? [] : parsedFeed
+    }
+    let oldFeed = try await changing.load()
+    let oldResult = try AvailableUpdate.check(in: oldFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64")
+    expect(oldResult == nil, "Old feed fixture already has an update")
+    let freshFeed = try await changing.load(forceRefresh: true)
+    let freshResult = try AvailableUpdate.check(in: freshFeed, current: ReleaseVersion("0.1.0-alpha.6")!, architecture: "arm64")
+    expect(freshResult != nil, "Manual check stayed up to date after the publisher added a new release")
     let sharedProbe = AppcastFetchProbe()
     let shared = AppcastStore {
         _ = await sharedProbe.begin()
@@ -384,16 +411,25 @@ if CommandLine.arguments.contains("--live-update") {
 
 if CommandLine.arguments.contains("--live-check") {
     MainActor.assumeIsolated {
-        var response: Result<AvailableUpdate?, Error>?
+        var response: Result<[String], Error>?
         Task { @MainActor in
-            do { response = .success(try await UpdateDiscovery.find(current: ReleaseVersion("0.1.0-alpha.3")!, architecture: UpdateController.architecture)) }
-            catch { response = .failure(error) }
+            do {
+                var found: [String] = []
+                for arch in ["arm64", "x86_64"] {
+                    for _ in 0..<2 {
+                        guard let update = try await UpdateDiscovery.find(current: ReleaseVersion("0.1.0-alpha.6")!, architecture: arch, forceRefresh: true),
+                              update.version >= ReleaseVersion("0.1.0-alpha.7")! else { throw UpdateFailure.metadata }
+                        found.append(arch + ": " + update.version.text)
+                    }
+                }
+                response = .success(found)
+            } catch { response = .failure(error) }
         }
         let deadline = Date().addingTimeInterval(45)
         while response == nil && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
         guard let response else { fatalError("Live appcast discovery timed out") }
         switch response {
-        case .success(let update): print("PASS live bounded static appcast discovery: " + (update?.version.text ?? "no newer compatible release"))
+        case .success(let updates): print("PASS repeated live discovery from Alpha 6: " + updates.joined(separator: ", "))
         case .failure(let error): fatalError("Live appcast discovery failed: \(error)")
         }
     }

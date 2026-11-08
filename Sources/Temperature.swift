@@ -31,7 +31,7 @@ struct CPUTemperatureProfile {
 // Read-only AppleSMC protocol; never issue an SMC write command.
 final class CPUTemperatureReader {
     private let profile: CPUTemperatureProfile?
-    var supportsDevice: Bool { profile != nil }
+    var supportsDevice: Bool { !keys.isEmpty }
     private var connection: io_connect_t = 0
     private var keys: [(name: String, size: UInt32, type: UInt32)] = []
     private var nextRead: TimeInterval = 0

@@ -21,7 +21,7 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
     static func allowed(_ url: URL) -> Bool {
         guard url.scheme == "https", url.user == nil, url.password == nil, url.port == nil || url.port == 443 else { return false }
         if url.host == "raw.githubusercontent.com" {
-            return ["arm64", "x86_64"].compactMap { Appcast.url(for: $0) }.contains(url)
+            return Appcast.acceptsFeedURL(url)
         }
         return ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"].contains(url.host ?? "")
     }
@@ -42,6 +42,11 @@ final class UpdateDownload: NSObject, URLSessionDownloadDelegate {
                 let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
                 self.session = session
                 var request = URLRequest(url: url)
+                if url.host == "raw.githubusercontent.com" {
+                    request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+                    request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+                    request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+                }
                 request.setValue("Neylu-Updater", forHTTPHeaderField: "User-Agent")
                 let task = session.downloadTask(with: request)
                 lock.lock(); self.task = task; let cancelled = self.cancelled; lock.unlock()
@@ -255,7 +260,7 @@ final class UpdateController: NSObject, NSWindowDelegate {
         task = Task {
             do {
                 guard let version = ReleaseVersion(current) else { throw UpdateFailure.metadata }
-                available = try await UpdateDiscovery.find(current: version, architecture: Self.architecture)
+                available = try await UpdateDiscovery.find(current: version, architecture: Self.architecture, forceRefresh: true)
                 onDiscovery?(available)
                 if let update = available {
                     setWorking(false, message: "update.status.available_format", argument: update.version.text)

@@ -19,7 +19,12 @@ for (name, appearanceName) in [("light", NSAppearance.Name.aqua), ("dark", .dark
     application.appearance = appearance
     let model = MonitorModel(persistHistory: false)
     model.applyScreenshotFixture()
-    let root = DetailView(model: model)
+    if CommandLine.arguments.contains("--pinned") { model.toggleInspectionPin() }
+    let inspecting = CommandLine.arguments.contains("--inspection") || CommandLine.arguments.contains("--inspect-left")
+    let selected = model.chartWindow.start.addingTimeInterval(model.chartWindow.end.timeIntervalSince(model.chartWindow.start) * (CommandLine.arguments.contains("--inspect-left") ? 0.02 : 0.98))
+    let root = (inspecting
+        ? AnyView(MetricsOverviewView(model: model, settings: model.settings, inspection: selected).padding(18).frame(width: 380))
+        : AnyView(DetailView(model: model)))
         .environment(\.colorScheme, name == "dark" ? .dark : .light)
         .environment(\.displayScale, 2)
         .environment(\.controlActiveState, .key)
@@ -72,6 +77,8 @@ for (name, appearanceName) in [("light", NSAppearance.Name.aqua), ("dark", .dark
     try output.representation(using: .png, properties: [:])!.write(to: destination.appendingPathComponent("overview-\(name)@2x.png"))
 
     let meter = MeterView(frame: NSRect(x: 0, y: 0, width: MeterView.meterWidth(for: .decimal), height: 22))
+    meter.configuration = model.effectiveMenuBarConfiguration
+    meter.setFrameSize(NSSize(width: MeterView.meterWidth(for: meter.basis, configuration: meter.configuration), height: 22))
     meter.appearance = appearance
     meter.reading = model.reading
     let barSize = NSSize(width: meter.frame.width + 16, height: 30)

@@ -3,7 +3,18 @@ import SwiftUI
 import CoreText
 
 final class MonitorModel: ObservableObject {
-    @Published var reading = Reading()
+    @Published var reading = Reading() {
+        didSet {
+            if let discovered = reading.capabilities, discovered != capabilities {
+                capabilities = discovered
+                onCapabilitiesChange?()
+            }
+        }
+    }
+    @Published private(set) var capabilities = MetricCapabilities.basic
+    var onCapabilitiesChange: (() -> Void)?
+    var effectiveMenuBarConfiguration: MenuBarConfiguration { capabilities.configuration(settings.menuBarConfiguration) }
+    var availableMenuBarItems: [MenuBarItem] { capabilities.items(settings.menuBarConfiguration) }
     @Published var history: [CPUPoint] = []
     @Published var gpuHistory: [GPUPoint] = []
     @Published var memoryHistory: [MemoryPoint] = []
@@ -181,12 +192,15 @@ struct MenuBarLayout {
     static let leadingTrim: CGFloat = 2.5
     let slots: [MenuBarSlot]
     let width: CGFloat
-    init(basis: UnitBasis, configuration: MenuBarConfiguration, formats: MenuBarFormats = .init()) {
+    init(basis: UnitBasis, configuration: MenuBarConfiguration) {
         let metrics = configuration.visibleMetrics
         var cursor: CGFloat = 0
         var result: [MenuBarSlot] = []
         for (index, metric) in metrics.enumerated() {
-            let width: CGFloat = metric == .network ? 14 + MeterView.rateWidth(for: basis, formats: formats) : (metric == .memory && formats.memoryCapacity ? 57 : 29)
+            let width: CGFloat
+            if metric == .network { width = 14 + MeterView.rateWidth(for: basis) }
+            else if metric == .temperature { width = MeterView.valueWidth(["129.9°C", "—"]) }
+            else { width = 29 }
             result.append(MenuBarSlot(metric: metric, originX: cursor, width: width))
             cursor += width
             if index < metrics.count - 1 { cursor += metric == .network ? 6 : 5 }
@@ -242,18 +256,21 @@ struct StatusImageMask {
 // A single fixed-width surface: macOS only sees one menu bar item.
 final class MeterView: NSView {
     var basis: UnitBasis = .decimal { didSet { needsDisplay = true; updateAccessibility() } }
-    static func rateWidth(for basis: UnitBasis, formats: MenuBarFormats = .init()) -> CGFloat {
+    static func rateWidth(for basis: UnitBasis) -> CGFloat {
         let digits = basis == .decimal ? "999" : "1023"
         let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .regular)]
-        let units = formats.networkBits ? (basis == .decimal ? ["kbit", "Mbit", "Gbit", "Tbit"] : ["Kibit", "Mibit", "Gibit", "Tibit"]) : Array(basis.units.dropFirst())
+        let units = Array(basis.units.dropFirst())
         return ceil(units.flatMap { unit in
             [digits, "10.0"].map { ("\($0) \(unit)/s" as NSString).size(withAttributes: attributes).width }
         }.max() ?? 0)
     }
-    var formats = MenuBarFormats() { didSet { needsDisplay = true; updateAccessibility() } }
+    static func valueWidth(_ values: [String]) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+        return max(29, ceil(values.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0) + 8)
+    }
     var configuration = MenuBarConfiguration.defaults { didSet { needsDisplay = true; updateAccessibility() } }
-    static func meterWidth(for basis: UnitBasis, configuration: MenuBarConfiguration = .defaults, formats: MenuBarFormats = .init()) -> CGFloat {
-        MenuBarLayout(basis: basis, configuration: configuration, formats: formats).width
+    static func meterWidth(for basis: UnitBasis, configuration: MenuBarConfiguration = .defaults) -> CGFloat {
+        MenuBarLayout(basis: basis, configuration: configuration).width
     }
     private static let fallbackIcon: NSImage = {
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let image = NSImage(contentsOf: url) { return image }
@@ -270,10 +287,10 @@ final class MeterView: NSView {
     var accessibilitySummary: String {
         let summaries = configuration.visibleMetrics.map { metric -> String in
             if metric == .network {
-                return L("metrics.upload") + " " + formats.rate(reading.upload, basis: basis, ready: reading.networkReady)
-                    + ", " + L("metrics.download") + " " + formats.rate(reading.download, basis: basis, ready: reading.networkReady)
+                return L("metrics.upload") + " " + formattedRate(reading.upload, basis: basis, ready: reading.networkReady)
+                    + ", " + L("metrics.download") + " " + formattedRate(reading.download, basis: basis, ready: reading.networkReady)
             }
-            return metric.title + " " + Self.metricValue(metric, reading: reading, basis: basis, formats: formats)
+            return metric.title + " " + Self.metricValue(metric, reading: reading)
         }
         return (["Neylu"] + summaries).joined(separator: " · ")
     }
@@ -281,9 +298,9 @@ final class MeterView: NSView {
         (superview as? NSStatusBarButton)?.setAccessibilityLabel(accessibilitySummary)
     }
     var displayKey: [String] {
-        [basis.rawValue, String(formats.memoryCapacity), String(formats.networkBits)] + configuration.visibleMetrics.flatMap { metric -> [String] in
-            if metric == .network { return [metric.rawValue, formats.rate(reading.upload, basis: basis, ready: reading.networkReady), formats.rate(reading.download, basis: basis, ready: reading.networkReady)] }
-            return [metric.rawValue, Self.metricValue(metric, reading: reading, basis: basis, formats: formats)]
+        [basis.rawValue] + configuration.visibleMetrics.flatMap { metric -> [String] in
+            if metric == .network { return [metric.rawValue, formattedRate(reading.upload, basis: basis, ready: reading.networkReady), formattedRate(reading.download, basis: basis, ready: reading.networkReady)] }
+            return [metric.rawValue, Self.metricValue(metric, reading: reading)]
         }
     }
     func makeStatusImage() -> NSImage {
@@ -292,7 +309,7 @@ final class MeterView: NSView {
             icon.size = NSSize(width: 16, height: 16)
             return icon
         }
-        let layout = MenuBarLayout(basis: basis, configuration: configuration, formats: formats)
+        let layout = MenuBarLayout(basis: basis, configuration: configuration)
         let size = NSSize(width: layout.width, height: 22)
         let image = NSImage(size: size)
         // Materialize both display scales before handing the image to the menu bar.
@@ -314,7 +331,7 @@ final class MeterView: NSView {
             cg.translateBy(x: 0, y: CGFloat(pixelsHigh))
             cg.scaleBy(x: CGFloat(pixelsWide) / size.width, y: -scale)
             Self.drawContents(in: NSRect(origin: .zero, size: size), reading: reading,
-                              basis: basis, configuration: configuration, formats: formats, color: .black)
+                              basis: basis, configuration: configuration, color: .black)
             context.flushGraphics()
             NSGraphicsContext.restoreGraphicsState()
             image.addRepresentation(bitmap)
@@ -326,21 +343,24 @@ final class MeterView: NSView {
     }
     override func draw(_ dirtyRect: NSRect) {
         let color: NSColor = (superview as? NSStatusBarButton)?.isHighlighted == true ? .selectedMenuItemTextColor : .labelColor
-        Self.drawContents(in: bounds, reading: reading, basis: basis, configuration: configuration, formats: formats, color: color)
+        Self.drawContents(in: bounds, reading: reading, basis: basis, configuration: configuration, color: color)
     }
-    private static func metricValue(_ metric: MenuBarMetric, reading: Reading, basis: UnitBasis, formats: MenuBarFormats) -> String {
+    private static func metricValue(_ metric: MenuBarMetric, reading: Reading) -> String {
         switch metric {
-        case .memory: return formats.memoryCapacity ? (reading.memoryReady ? formattedMemory(reading.usedMemory, basis: basis) : "—") : percent(reading.memory, ready: reading.memoryReady)
+        case .memory: return percent(reading.memory, ready: reading.memoryReady)
         case .cpu: return percent(reading.cpu, ready: reading.cpuReady)
         case .gpu: return percent(reading.gpu, ready: reading.gpuReady)
         case .disk:
             let used = reading.diskTotal > 0 ? 100 * Double(reading.diskTotal - min(reading.diskTotal, reading.diskFree)) / Double(reading.diskTotal) : 0
             return percent(used, ready: reading.diskReady && reading.diskTotal > 0)
+        case .temperature:
+            guard let value = reading.cpuTemperature, value.isFinite, value > 0, value < 130 else { return "—" }
+            return String(format: "%.1f°C", value)
         case .network: return ""
         }
     }
     private static func drawContents(in bounds: NSRect, reading: Reading, basis: UnitBasis, configuration: MenuBarConfiguration,
-                                     formats: MenuBarFormats, color: NSColor) {
+                                     color: NSColor) {
         if configuration.visibleMetrics.isEmpty {
             let x = (bounds.width - 16) / 2
             Self.fallbackIcon.draw(in: NSRect(x: x, y: (bounds.height - 16) / 2, width: 16, height: 16),
@@ -360,7 +380,7 @@ final class MeterView: NSView {
         ]
         // Text and icons share the ink centre, rather than font line-box offsets.
         func rateRow(_ bytes: Double, up: Bool, x: CGFloat, centerY: CGFloat) {
-            let value = formats.rate(bytes, basis: basis, ready: reading.networkReady)
+            let value = formattedRate(bytes, basis: basis, ready: reading.networkReady)
             let line = CTLineCreateWithAttributedString(NSAttributedString(string: value, attributes: rateAttributes))
             let inkBounds = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
             let halfHeight = rateFont.capHeight * 0.38
@@ -401,14 +421,14 @@ final class MeterView: NSView {
             CTLineDraw(line, context)
             context.restoreGState()
         }
-        for slot in MenuBarLayout(basis: basis, configuration: configuration, formats: formats).slots {
+        for slot in MenuBarLayout(basis: basis, configuration: configuration).slots {
             let metric = slot.metric
             let x = slot.originX
             if metric == .network {
                 rateRow(reading.upload, up: true, x: x, centerY: top + 5.5)
                 rateRow(reading.download, up: false, x: x, centerY: top + 16.5)
             } else {
-                metricText(Self.metricValue(metric, reading: reading, basis: basis, formats: formats), x: x + (slot.width - 29) / 2, centerY: top + 5.5)
+                metricText(Self.metricValue(metric, reading: reading), x: x + (slot.width - 29) / 2, centerY: top + 5.5)
                 metricText(metric.shortLabel, x: x + (slot.width - 29) / 2, centerY: top + 16.5)
             }
         }
@@ -528,7 +548,7 @@ struct DetailView: View {
     }
     private var contents: some View {
         VStack(spacing: 0) {
-            HistoryRangeControl(model: model, settings: settings).padding(.bottom, 14)
+            OverviewHeader(model: model, settings: settings).padding(.bottom, 14)
             ScrollView(.vertical) {
                 MetricsOverviewView(model: model, settings: model.settings)
                     .fixedSize(horizontal: false, vertical: true)
@@ -547,12 +567,12 @@ struct DetailView: View {
     }
 }
 
-private struct HistoryRangeControl: View {
+private struct OverviewHeader: View {
     @ObservedObject var model: MonitorModel
     @ObservedObject var settings: MonitorSettings
     var body: some View {
         HStack {
-            Text(L("overview.title")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Text(L10n.text(model.isInspectionPinned ? "chart.pinned" : "overview.title", language: settings.language)).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
             Spacer()
             if model.isInspectionPinned {
                 Button { model.resumeInspection() } label: { Image(systemName: "play.fill") }
@@ -560,10 +580,7 @@ private struct HistoryRangeControl: View {
                     .accessibilityLabel(L("chart.resume_live"))
             }
             if model.isHistoryLoading { ProgressView().controlSize(.mini) }
-            Picker(L("history.range"), selection: $settings.historyRange) {
-                ForEach(HistoryRange.allCases, id: \.rawValue) { Text($0.title).tag($0) }
-            }.pickerStyle(.menu).labelsHidden().fixedSize().font(.system(size: 11))
-        }
+        }.frame(height: 18)
     }
 }
 
@@ -578,22 +595,33 @@ struct MetricsOverviewView: View {
         self._inspection = State(initialValue: inspection)
     }
     @State private var inspection: Date?
-    private var inspectionDates: [Date] { model.chartCPU.map(\.timestamp) + model.chartGPU.map(\.timestamp) + model.chartMemory.map(\.timestamp) + model.chartNetwork.map(\.timestamp) }
+    private var inspectionDates: [Date] {
+        var dates: [Date] = []
+        if model.capabilities.supports(.cpu) { dates += model.chartCPU.map(\.timestamp) }
+        if model.capabilities.supports(.gpu) { dates += model.chartGPU.map(\.timestamp) }
+        if model.capabilities.supports(.memory) { dates += model.chartMemory.map(\.timestamp) }
+        if model.capabilities.supports(.network) { dates += model.chartNetwork.map(\.timestamp) }
+        return dates
+    }
     private var r: Reading { model.reading }
     private let columnGap: CGFloat = 22
     var body: some View {
         VStack(spacing: 16) {
-            HStack(alignment: .top, spacing: columnGap) {
-                cpu.frame(maxWidth: .infinity)
-                gpu.frame(maxWidth: .infinity)
+            if model.capabilities.supports(.cpu) || model.capabilities.supports(.gpu) {
+                HStack(alignment: .top, spacing: columnGap) {
+                    if model.capabilities.supports(.cpu) { cpu.frame(maxWidth: .infinity) }
+                    if model.capabilities.supports(.gpu) { gpu.frame(maxWidth: .infinity) }
+                }
+                if model.capabilities.supports(.memory) || model.capabilities.supports(.network) || model.capabilities.supports(.disk) { Divider() }
             }
-            Divider()
-            HStack(alignment: .top, spacing: columnGap) {
-                memory.frame(maxWidth: .infinity)
-                network.frame(maxWidth: .infinity)
+            if model.capabilities.supports(.memory) || model.capabilities.supports(.network) {
+                HStack(alignment: .top, spacing: columnGap) {
+                    if model.capabilities.supports(.memory) { memory.frame(maxWidth: .infinity) }
+                    if model.capabilities.supports(.network) { network.frame(maxWidth: .infinity) }
+                }
+                if model.capabilities.supports(.disk) { Divider() }
             }
-            Divider()
-            disk
+            if model.capabilities.supports(.disk) { disk }
             ForEach(r.externalDisks) { volume in
                 Divider()
                 externalDisk(volume)
@@ -611,8 +639,12 @@ struct MetricsOverviewView: View {
     private var cpu: some View {
         VStack(spacing: 7) {
             heading(MenuBarMetric.cpu.symbol, "CPU", value: percent(r.cpu, ready: r.cpuReady))
-            fact(L("metrics.temperature"), value: r.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? (r.cpuTemperatureSupported ? L("metrics.unavailable") : L("metrics.unsupported")))
-                .help(r.cpuTemperature != nil ? L("temperature.sensor_hint") : (r.cpuTemperatureSupported ? L("temperature.no_sensor") : L("temperature.unsupported_device")))
+            if model.capabilities.supports(.temperature) {
+                fact(L("metrics.temperature"), value: r.cpuTemperature.map { String(format: "%.1f°C", $0) } ?? L("metrics.unavailable"))
+                    .help(r.cpuTemperature != nil ? L("temperature.sensor_hint") : L("temperature.no_sensor"))
+            } else if model.capabilities.supports(.gpu) && model.capabilities.gpuCores {
+                Color.clear.frame(height: 15).accessibilityHidden(true)
+            }
             CPUChart(points: model.chartCPU, window: model.chartWindow)
                 .chartInspection(date: $inspection, isPinned: model.isInspectionPinned, togglePin: { model.toggleInspectionPin() }, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.cpu(model.chartCPU, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
             VStack(spacing: 5) {
@@ -625,14 +657,18 @@ struct MetricsOverviewView: View {
     private var gpu: some View {
         VStack(spacing: 7) {
             heading(MenuBarMetric.gpu.symbol, "GPU", value: percent(r.gpu, ready: r.gpuReady))
-            fact(L("metrics.cores"), value: r.gpuCores.map { L10n.cores($0) } ?? "—")
-            GPUChart(points: model.chartGPU, window: model.chartWindow, language: settings.language, rendererAvailable: model.chartGPURendererAvailable, tilerAvailable: model.chartGPUTilerAvailable)
-                .chartInspection(date: $inspection, isPinned: model.isInspectionPinned, togglePin: { model.toggleInspectionPin() }, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.gpu(model.chartGPU, at: inspection, language: settings.language, window: model.chartWindow)).frame(height: 50).padding(.vertical, 3)
+            if model.capabilities.gpuCores {
+                fact(L("metrics.cores"), value: r.gpuCores.map { L10n.cores($0) } ?? "—")
+            } else if model.capabilities.supports(.cpu) && model.capabilities.supports(.temperature) {
+                Color.clear.frame(height: 15).accessibilityHidden(true)
+            }
+            GPUChart(points: model.chartGPU, window: model.chartWindow, language: settings.language, rendererAvailable: model.chartGPURendererAvailable && model.capabilities.gpuRenderer, tilerAvailable: model.chartGPUTilerAvailable && model.capabilities.gpuTiler)
+                .chartInspection(date: $inspection, isPinned: model.isInspectionPinned, togglePin: { model.toggleInspectionPin() }, samples: inspectionDates, window: model.chartWindow, readout: ChartReadout.gpu(model.chartGPU, at: inspection, language: settings.language, window: model.chartWindow, rendererAvailable: model.capabilities.gpuRenderer, tilerAvailable: model.capabilities.gpuTiler)).frame(height: 50).padding(.vertical, 3)
                 .overlay { if !r.gpuReady { Text(L("metrics.gpu_unavailable")).font(.system(size: 10)).foregroundStyle(.secondary) } }
             VStack(spacing: 5) {
                 breakdown(L("metrics.gpu_utilization"), color: .blue, value: r.gpu, ready: r.gpuReady)
-                breakdown(L("metrics.gpu_renderer"), color: .red, value: r.gpuRenderer ?? 0, ready: r.gpuReady && r.gpuRenderer != nil)
-                breakdown("Tiler", color: .teal, value: r.gpuTiler ?? 0, ready: r.gpuReady && r.gpuTiler != nil)
+                if model.capabilities.gpuRenderer { breakdown(L("metrics.gpu_renderer"), color: .red, value: r.gpuRenderer ?? 0, ready: r.gpuRenderer != nil) }
+                if model.capabilities.gpuTiler { breakdown("Tiler", color: .teal, value: r.gpuTiler ?? 0, ready: r.gpuTiler != nil) }
             }
         }
     }
@@ -678,10 +714,12 @@ struct MetricsOverviewView: View {
                 Spacer(minLength: 8)
                 Text(r.diskReady ? L("disk.total_prefix") + formattedMemory(r.diskTotal, basis: model.basis) : "—").foregroundStyle(.secondary)
             }.font(.system(size: 10.5)).monospacedDigit()
+            if model.capabilities.diskActivity {
             HStack(spacing: columnGap) {
                 fact(L("metrics.disk_read"), value: formattedDiskRate(r.diskRead, basis: model.basis, ready: r.diskActivityReady)).frame(maxWidth: .infinity)
                 fact(L("metrics.disk_write"), value: formattedDiskRate(r.diskWrite, basis: model.basis, ready: r.diskActivityReady)).frame(maxWidth: .infinity)
             }.padding(.top, 2).help(L("disk.startup_io_hint"))
+            }
         }
     }
     private func externalDisk(_ volume: ExternalDiskReading) -> some View {
@@ -695,10 +733,12 @@ struct MetricsOverviewView: View {
                 Spacer(minLength: 8)
                 Text(L("disk.total_prefix") + formattedMemory(volume.total, basis: model.basis)).foregroundStyle(.secondary)
             }.font(.system(size: 10.5)).monospacedDigit()
+            if volume.activitySupported || volume.activityReady {
             HStack(spacing: columnGap) {
                 fact(L("metrics.disk_read"), value: formattedDiskRate(volume.read, basis: model.basis, ready: volume.activityReady)).frame(maxWidth: .infinity)
                 fact(L("metrics.disk_write"), value: formattedDiskRate(volume.write, basis: model.basis, ready: volume.activityReady)).frame(maxWidth: .infinity)
             }.padding(.top, 2).help(L("disk.io_hint"))
+            }
         }
     }
     private func heading(_ symbol: String, _ title: String, value: String? = nil, ejectVolume: ExternalDiskReading? = nil) -> some View {

@@ -19,6 +19,8 @@ enum EnergyMode: String, CaseIterable {
 struct SamplingDemand: Equatable {
     var details = true
     var systemDisk = true
+    var temperature = false
+    var needsTemperature: Bool { details || temperature }
     static let full = SamplingDemand()
 }
 

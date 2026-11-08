@@ -15,10 +15,13 @@ struct ChartReadout {
         guard let p = nearest(points, at: date, timestamp: \.timestamp, window: window) else { return nil }
         return Self(timestamp: p.timestamp, value: String(format: "%.0f%% · %@ %.0f%% · %@ %.0f%%", p.user + p.system, L10n.text("metrics.user", language: language), p.user, L10n.text("metrics.system", language: language), p.system))
     }
-    static func gpu(_ points: [GPUPoint], at date: Date?, language: AppLanguage, window: HistoryWindow? = nil) -> Self? {
+    static func gpu(_ points: [GPUPoint], at date: Date?, language: AppLanguage, window: HistoryWindow? = nil, rendererAvailable: Bool = true, tilerAvailable: Bool = true) -> Self? {
         guard let p = nearest(points, at: date, timestamp: \.timestamp, window: window) else { return nil }
         func value(_ n: Double?) -> String { n.map { String(format: "%.0f%%", $0) } ?? "—" }
-        return Self(timestamp: p.timestamp, value: "\(value(p.total)) · \(L10n.text("metrics.gpu_renderer", language: language)) \(value(p.renderer)) · Tiler \(value(p.tiler))")
+        var values = [value(p.total)]
+        if rendererAvailable { values.append(L10n.text("metrics.gpu_renderer", language: language) + " " + value(p.renderer)) }
+        if tilerAvailable { values.append("Tiler " + value(p.tiler)) }
+        return Self(timestamp: p.timestamp, value: values.joined(separator: " · "))
     }
     static func memory(_ points: [MemoryPoint], at date: Date?, basis: UnitBasis, window: HistoryWindow? = nil) -> Self? {
         guard let p = nearest(points, at: date, timestamp: \.timestamp, window: window) else { return nil }
@@ -54,6 +57,18 @@ struct ChartFocusAppearance: ViewModifier {
     }
 }
 
+struct ChartTooltipLayout {
+    static func originX(selection: CGFloat, width: CGFloat, container: CGFloat) -> CGFloat {
+        min(max(0, container - width), max(0, selection - width / 2))
+    }
+    static func width(for readout: ChartReadout, container: CGFloat) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .regular)
+        let time = readout.timestamp.formatted(date: .omitted, time: .standard)
+        let text = [time, readout.value].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        return min(max(0, container), ceil(text) + 8)
+    }
+}
+
 private struct ChartInspectionModifier: ViewModifier {
     @Binding var date: Date?
     @FocusState private var isFocused: Bool
@@ -84,8 +99,13 @@ private struct ChartInspectionModifier: ViewModifier {
                             Text(readout.value)
                         }
                         .font(.system(size: 9)).monospacedDigit()
-                        .padding(3)
+                        .frame(width: max(0, ChartTooltipLayout.width(for: readout, container: geometry.size.width) - 8), alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(4)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        .offset(x: ChartTooltipLayout.originX(
+                            selection: geometry.size.width * window.fraction(date ?? readout.timestamp),
+                            width: ChartTooltipLayout.width(for: readout, container: geometry.size.width), container: geometry.size.width))
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                     }

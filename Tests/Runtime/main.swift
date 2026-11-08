@@ -7,30 +7,87 @@ L10n.useResources(at: URL(fileURLWithPath: FileManager.default.currentDirectoryP
 
 if CommandLine.arguments.contains("--self-test") {
     _ = NSApplication.shared
-    let polishSuite = "Neylu-polish-" + UUID().uuidString
-    let polishDefaults = UserDefaults(suiteName: polishSuite)!
-    precondition(MenuBarFormats.load(from: polishDefaults) == MenuBarFormats())
-    let capacityBits = MenuBarFormats(memoryCapacity: true, networkBits: true)
-    capacityBits.save(to: polishDefaults)
-    precondition(MenuBarFormats.load(from: polishDefaults) == capacityBits)
-    precondition(capacityBits.rate(125_000, basis: .decimal) == "1.0 Mbit/s")
-    precondition(capacityBits.rate(131_072, basis: .binary) == "1.0 Mibit/s")
-    precondition(capacityBits.rate(-1, basis: .decimal) == "0 kbit/s")
-    precondition(capacityBits.rate(1, basis: .decimal, ready: false) == "—")
-    let formatMeter = MeterView(frame: .zero)
-    formatMeter.reading = Reading(usedMemory: 41_600_000_000, memoryReady: true)
-    let oldFormatWidth = MeterView.meterWidth(for: .decimal)
-    formatMeter.formats = capacityBits
-    precondition(formatMeter.accessibilitySummary.contains("41.6 GB"))
-    for basis in UnitBasis.allCases {
-        formatMeter.basis = basis
-        let width = MeterView.meterWidth(for: basis, formats: capacityBits)
-        precondition(width > oldFormatWidth && formatMeter.makeStatusImage().size.width == width)
-        for bytes in [0.0, 999_499, 999_500, 1_024_000, 125_000_000, 1e12] {
-            formatMeter.reading.upload = bytes
-            precondition(formatMeter.makeStatusImage().size.width == width)
+    precondition(!MenuBarConfiguration.defaults.visibleMetrics.contains(.temperature))
+    precondition(!SamplingDemand(details: false, systemDisk: false).needsTemperature)
+    precondition(SamplingDemand(details: false, systemDisk: false, temperature: true).needsTemperature)
+    let percentMeter = MeterView(frame: .zero)
+    percentMeter.configuration = MenuBarConfiguration(items: [MenuBarItem(metric: .memory, enabled: true)])
+    let percentWidth = percentMeter.makeStatusImage().size.width
+    for value in [0.0, 9, 50, 99, 100] {
+        percentMeter.reading = Reading(memory: value, usedMemory: 41_600_000_000, memoryReady: true)
+        precondition(percentMeter.makeStatusImage().size.width == percentWidth)
+        precondition(percentMeter.accessibilitySummary.contains(String(Int(value)) + "%"))
+        precondition(!percentMeter.accessibilitySummary.contains("GB"))
+    }
+    let temperatureMeter = MeterView(frame: .zero)
+    temperatureMeter.configuration = MenuBarConfiguration(items: [MenuBarItem(metric: .temperature, enabled: true)])
+    let temperatureWidth = temperatureMeter.makeStatusImage().size.width
+    for value in [Double(45), 99.9, 100, 129.9, .nan, .infinity, -1, 130] {
+        temperatureMeter.reading.cpuTemperature = value
+        precondition(temperatureMeter.makeStatusImage().size.width == temperatureWidth)
+        if value.isFinite && value > 0 && value < 130 { precondition(temperatureMeter.accessibilitySummary.contains("°C")) }
+        else { precondition(temperatureMeter.accessibilitySummary.contains("—")) }
+    }
+    temperatureMeter.reading.cpuTemperature = nil
+    precondition(temperatureMeter.accessibilitySummary.contains("—"))
+    for container in [CGFloat(0), 20, 161, 320] {
+        let readout = ChartReadout(timestamp: Date(), value: "CPU 100% · User 50% · System 50%")
+        let width = ChartTooltipLayout.width(for: readout, container: container)
+        for position in [CGFloat(-100), 0, container / 2, container, container + 100] {
+            let x = ChartTooltipLayout.originX(selection: position, width: width, container: container)
+            precondition(x >= 0 && x + width <= container)
         }
     }
+    precondition(ShortcutChord(key: 45, modifiers: UInt32(cmdKey | shiftKey), label: "⌘⇧N").isValid)
+    print("PASS: memory percentages retain stable widths; temperature and tooltip edges stay within stable allocations")
+    let supportedModel = MonitorModel(persistHistory: false)
+    let savedForCapabilities = supportedModel.settings.menuBarConfiguration
+    var requested = MenuBarConfiguration.defaults
+    requested.setEnabled(true, for: .temperature)
+    supportedModel.settings.menuBarConfiguration = requested
+    var capacityChanges = 0
+    supportedModel.onCapabilitiesChange = { capacityChanges += 1 }
+    supportedModel.reading = Reading(capabilities: .basic)
+    precondition(!supportedModel.availableMenuBarItems.contains { $0.metric == .gpu || $0.metric == .temperature })
+    precondition(!supportedModel.effectiveMenuBarConfiguration.visibleMetrics.contains(.gpu))
+    precondition(!supportedModel.effectiveMenuBarConfiguration.visibleMetrics.contains(.temperature))
+    precondition(supportedModel.settings.menuBarConfiguration == requested)
+    let filteredController = MenuBarSettingsController(model: supportedModel)
+    func settingsViews(_ root: NSView) -> [NSView] { [root] + root.subviews.flatMap(settingsViews) }
+    let settingsRoot = filteredController.window!.contentView!
+    settingsRoot.layoutSubtreeIfNeeded()
+    let settingControls = settingsViews(settingsRoot)
+    precondition(!settingControls.contains { $0 is NSPopUpButton })
+    let resetControl = settingControls.compactMap { $0 as? NSButton }.first { $0.title == L("menu_bar.restore_layout") }!
+    precondition(!resetControl.isBordered)
+    precondition(!settingControls.compactMap { $0 as? NSButton }.contains { $0.title.contains("IP") })
+    let metricsTable = NSTableView()
+    precondition(filteredController.numberOfRows(in: metricsTable) == 4)
+    var writable: [String] = []
+    for row in 0..<filteredController.numberOfRows(in: metricsTable) {
+        let item = filteredController.tableView(metricsTable, pasteboardWriterForRow: row) as! NSPasteboardItem
+        writable.append(item.string(forType: NSPasteboard.PasteboardType("io.github.chenmobuys.Neylu.menuBarMetric"))!)
+    }
+    precondition(!writable.contains("gpu") && !writable.contains("temperature"))
+    precondition(filteredController.tableView(metricsTable, pasteboardWriterForRow: 99) == nil)
+    let movedWithoutGPU = MetricCapabilities.basic.moving(.cpu, to: 0, in: requested)
+    precondition(MetricCapabilities.basic.items(movedWithoutGPU).first?.metric == .cpu)
+    precondition(movedWithoutGPU.items.first(where: { $0.metric == .temperature })?.enabled == true)
+    precondition(MetricCapabilities.basic.moving(.temperature, to: 0, in: requested) == requested)
+    supportedModel.reading = Reading(capabilities: MetricCapabilities(), cpuTemperature: 42, gpu: 10, gpuReady: true)
+    precondition(supportedModel.effectiveMenuBarConfiguration.visibleMetrics.contains(.temperature))
+    precondition(supportedModel.effectiveMenuBarConfiguration.visibleMetrics.contains(.gpu))
+    let changesAfterDiscovery = capacityChanges
+    supportedModel.reading = Reading() // No new support probe; this tick has no values.
+    precondition(supportedModel.capabilities == MetricCapabilities() && capacityChanges == changesAfterDiscovery)
+    precondition(supportedModel.effectiveMenuBarConfiguration.visibleMetrics.contains(.temperature))
+    let gpuOnly = ChartReadout.gpu([GPUPoint(timestamp: Date(), total: 30, renderer: nil, tiler: nil)], at: Date(), language: .english,
+                                  rendererAvailable: false, tilerAvailable: false)!
+    precondition(gpuOnly.value == "30%")
+    supportedModel.settings.menuBarConfiguration = savedForCapabilities
+    print("PASS: unsupported metrics are absent from status configuration and table/drag rows; preferences survive, hidden-row reordering is safe and missing ticks preserve support")
+    let polishSuite = "Neylu-polish-" + UUID().uuidString
+    let polishDefaults = UserDefaults(suiteName: polishSuite)!
     let testChord = ShortcutChord(key: 0, modifiers: UInt32(controlKey | optionKey), label: "⌃⌥A")
     precondition(testChord.isValid && ShortcutChord.load(from: polishDefaults) == nil)
     polishDefaults.set(try! JSONEncoder().encode(testChord), forKey: "globalShortcut")
@@ -83,18 +140,15 @@ if CommandLine.arguments.contains("--self-test") {
     pinModel.toggleInspectionPin(); pinModel.reloadHistory()
     precondition(!pinModel.isInspectionPinned)
     let oldConfiguration = pinModel.settings.menuBarConfiguration
-    let savedFormats = pinModel.settings.menuBarFormats
     let savedPrivacy = pinModel.settings.hideNetworkAddress
-    pinModel.settings.menuBarFormats = capacityBits
     pinModel.settings.hideNetworkAddress = true
     pinModel.settings.menuBarConfiguration.setEnabled(false, for: .cpu)
     pinModel.settings.restoreMenuBarLayout()
     precondition(pinModel.settings.menuBarConfiguration == .defaults && pinModel.history.last?.timestamp == pinNow)
-    precondition(pinModel.settings.menuBarFormats == capacityBits && pinModel.settings.hideNetworkAddress)
+    precondition(pinModel.settings.hideNetworkAddress)
     pinModel.settings.menuBarConfiguration = oldConfiguration
-    pinModel.settings.menuBarFormats = savedFormats
     pinModel.settings.hideNetworkAddress = savedPrivacy
-    print("PASS: menu formats/boundaries, isolated shortcut registration/conflict rollback, layout-only reset and 24-hour simulated recording with frozen charts")
+    print("PASS: memory display boundaries, isolated shortcut registration/conflict rollback, layout-only reset and 24-hour simulated recording with frozen charts")
     let energySuite = "Neylu-efficiency-" + UUID().uuidString
     let energyDefaults = UserDefaults(suiteName: energySuite)!
     precondition(EnergyMode.load(from: energyDefaults) == .off)
@@ -440,9 +494,15 @@ if CommandLine.arguments.contains("--self-test") {
     menuLayout.move(.gpu, to: 5)
     precondition(menuLayout.visibleMetrics == [.network, .cpu, .gpu])
     let normalized = MenuBarConfiguration(items: [MenuBarItem(metric: .cpu, enabled: true), MenuBarItem(metric: .cpu, enabled: false)])
-    precondition(normalized.items.count == 5 && normalized.visibleMetrics == [.cpu])
+    precondition(normalized.items.count == MenuBarMetric.allCases.count && normalized.visibleMetrics == [.cpu])
     appearanceDefaults.set([["metric": "unknown", "enabled": true], ["metric": "gpu", "enabled": true]], forKey: "menuBarItems")
     precondition(MenuBarConfiguration.load(from: appearanceDefaults).visibleMetrics == [.gpu])
+    var withTemperature = MenuBarConfiguration.load(from: appearanceDefaults)
+    precondition(!withTemperature.visibleMetrics.contains(.temperature))
+    withTemperature.setEnabled(true, for: .temperature)
+    withTemperature.move(.temperature, to: 0)
+    withTemperature.save(to: appearanceDefaults)
+    precondition(MenuBarConfiguration.load(from: appearanceDefaults).visibleMetrics == [.temperature, .gpu])
     appearanceDefaults.set("invalid", forKey: "menuBarItems")
     precondition(MenuBarConfiguration.load(from: appearanceDefaults) == .defaults)
     var hiddenLayout = MenuBarConfiguration.defaults
@@ -501,11 +561,30 @@ if CommandLine.arguments.contains("--self-test") {
         windowNumber: recorderWindow.windowNumber, context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0)!
     precondition(!recorder.performKeyEquivalent(with: recordEvent) && recorder.recorded == nil)
     precondition(recorderWindow.makeFirstResponder(recorder))
-    precondition(recorder.performKeyEquivalent(with: recordEvent) && recorder.recorded == testChord)
+    precondition(!recorder.performKeyEquivalent(with: recordEvent))
+    recorder.beginRecording()
+    precondition(recorderWindow.firstResponder === recorder)
+    precondition(recorder.performKeyEquivalent(with: recordEvent) && recorder.recorded == testChord && !recorder.isRecording)
     recorderWindow.makeFirstResponder(nil)
     precondition(!recorder.performKeyEquivalent(with: recordEvent))
     recorderWindow.close()
     print("PASS: native shortcut recorder captures local keys only while it is the focused responder")
+    let shortcutAlert = shortcut.makeConfigurationAlert()
+    shortcutAlert.layout()
+    let alertRecorder = shortcutAlert.accessoryView as! ShortcutRecorder
+    precondition(!shortcutAlert.buttons[0].isEnabled && !shortcutAlert.buttons[2].isEnabled)
+    precondition(alertRecorder.isBezeled && !alertRecorder.isRecording)
+    precondition(alertRecorder.accessibilityPerformPress())
+    precondition(alertRecorder.isRecording)
+    let alertEvent = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+        windowNumber: shortcutAlert.window.windowNumber, context: nil, characters: "N", charactersIgnoringModifiers: "N", isARepeat: false, keyCode: 45)!
+    precondition(alertRecorder.performKeyEquivalent(with: alertEvent))
+    precondition(shortcutAlert.buttons[0].isEnabled && !alertRecorder.isRecording)
+    precondition(alertRecorder.recorded?.label == "⇧⌘N")
+    alertRecorder.beginRecording()
+    precondition(!shortcutAlert.buttons[0].isEnabled && alertRecorder.recorded == nil)
+    precondition(alertRecorder.performKeyEquivalent(with: alertEvent) && shortcutAlert.buttons[0].isEnabled)
+    print("PASS: native shortcut dialog requires explicit recording, enables Save after capture and supports accessibility activation")
     let escapeWindow = UtilityWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
     escapeWindow.isReleasedWhenClosed = false
     escapeWindow.orderFront(nil)
@@ -550,7 +629,29 @@ if CommandLine.arguments.contains("--self-test") {
     precondition(badgeMenu.item(withTag: 13)!.title.contains("0.1.0-alpha.10"))
     precondition(settingsCoordinator.item(15, in: badgeMenu)!.state == (visibilityModel.settings.automaticUpdateChecks ? .on : .off))
     precondition(badgeMenu.items.filter { !$0.isSeparatorItem }.map(\.tag) == [6,3,16,10,13,14,18,11,12])
-    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,17,19,2,5,1,15])
+    precondition(settingsCoordinator.item(16, in: badgeMenu)!.submenu!.items.filter { !$0.isSeparatorItem }.map(\.tag) == [4,20,17,2,19,5,1,15])
+    precondition(settingsCoordinator.item(21, in: badgeMenu) == nil)
+    let unitsMenu = settingsCoordinator.item(2, in: badgeMenu)!.submenu!
+    precondition(unitsMenu.items.count == 2)
+    let savedBasis = visibilityModel.settings.basis
+    let chooseBinary = unitsMenu.items.first { ($0.representedObject as? String) == UnitBasis.binary.rawValue }!
+    _ = (chooseBinary.target as! NSObject).perform(chooseBinary.action!, with: chooseBinary)
+    settingsCoordinator.menuNeedsUpdate(unitsMenu)
+    precondition(visibilityModel.settings.basis == .binary && chooseBinary.state == .on)
+    precondition(unitsMenu.items.filter { $0.state == .on }.count == 1)
+    visibilityModel.settings.basis = savedBasis
+    let rangeMenu = settingsCoordinator.item(20, in: badgeMenu)!.submenu!
+    let rangeOptions = rangeMenu.items
+    precondition(rangeOptions.compactMap { $0.representedObject as? Int } == [120, 900, 3600])
+    let oldRange = visibilityModel.settings.historyRange
+    let chosenRange = rangeOptions.first { ($0.representedObject as? Int) == 900 }!
+    _ = (chosenRange.target as! NSObject).perform(chosenRange.action!, with: chosenRange)
+    precondition(visibilityModel.settings.historyRange == .fifteenMinutes)
+    settingsCoordinator.menuNeedsUpdate(rangeMenu)
+    precondition(rangeMenu.items[1] === chosenRange && chosenRange.state == .on)
+    precondition(rangeMenu.items.filter { $0.state == .on }.count == 1)
+    visibilityModel.settings.historyRange = oldRange
+    settingsCoordinator.menuNeedsUpdate(rangeMenu)
     let nestedPreferences = settingsCoordinator.item(16, in: badgeMenu)!.submenu!
     let nestedRefresh = settingsCoordinator.item(4, in: badgeMenu)!
     settingsCoordinator.menuNeedsUpdate(nestedPreferences)

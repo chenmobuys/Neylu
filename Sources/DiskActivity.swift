@@ -5,6 +5,7 @@ import DiskArbitration
 // Resolve one mounted volume through its I/O Registry ancestry. Its rates refer
 // to the physical drive; never sum parent and partition counters together.
 final class DiskActivityReader {
+    private(set) var sourceAvailable = false
     private var driver: io_service_t = 0
     private var counters = DiskIOCounters()
     private let volumeURL: URL
@@ -26,6 +27,7 @@ final class DiskActivityReader {
             if driver != 0 { IOObjectRelease(driver); driver = 0 }
             return nil
         }
+        sourceAvailable = true
         return counters.sample(read: read, written: written, now: now)
     }
     private func resolveDriver() -> io_service_t {

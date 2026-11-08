@@ -4,7 +4,7 @@ import Foundation
 // Deterministic demo data for documentation screenshots. Never persisted.
 extension MonitorModel {
     func applyScreenshotFixture(now: Date = Date()) {
-        reading = Reading(cpuTemperature: 48.6, cpu: 18, cpuUser: 12, cpuSystem: 6,
+        reading = Reading(capabilities: MetricCapabilities(), cpuTemperature: 48.6, cpu: 18, cpuUser: 12, cpuSystem: 6,
             cpuIdle: 82, gpu: 32, gpuRenderer: 28, gpuTiler: 30, gpuCores: 40,
             gpuReady: true, diskName: "Macintosh HD", diskTotal: 1_000_000_000_000,
             diskFree: 460_000_000_000, diskReady: true, diskRead: 8_600_000,
@@ -42,10 +42,20 @@ extension MonitorModel {
         }
         if CommandLine.arguments.contains("--screenshot-unavailable-sensors") {
             reading.cpuTemperature = nil
-            reading.cpuTemperatureSupported = false
+            var support = reading.capabilities!
+            support.menuMetrics.remove(.temperature)
+            support.gpuRenderer = false; support.gpuTiler = false
+            reading.capabilities = support
             reading.gpuRenderer = nil
             reading.gpuTiler = nil
             gpuHistory = gpuHistory.map { GPUPoint(timestamp: $0.timestamp, total: $0.total, renderer: nil, tiler: nil) }
+        }
+        if CommandLine.arguments.contains("--screenshot-no-gpu") {
+            var support = reading.capabilities!
+            support.menuMetrics.remove(.gpu)
+            support.menuMetrics.remove(.temperature)
+            support.gpuRenderer = false; support.gpuTiler = false; support.gpuCores = false
+            reading.capabilities = support
         }
         updateChartWindow(at: now)
     }
