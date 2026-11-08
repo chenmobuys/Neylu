@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 echo '[tests] Compiling Swift Testing targets'
-swift build --build-tests --configuration release
+swift build --build-tests --configuration release -Xswiftc -enable-testing
 
 test_scratch="$(mktemp -d "${TMPDIR:-/private/tmp}/Neylu-test-monitor.XXXXXX")"
 export NEYLU_TEST_PROGRESS="$test_scratch/progress.log"
@@ -32,7 +32,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 echo '[tests] Executing Swift Testing (runtime deadline: 180s)'
-swift test --skip-build --configuration release --disable-xctest "$@" &
+swift test --skip-build --configuration release --disable-xctest -Xswiftc -enable-testing "$@" &
 test_pid=$!
 (
   for ((elapsed=1; elapsed<=180; elapsed++)); do
