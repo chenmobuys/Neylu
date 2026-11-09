@@ -5,6 +5,44 @@
     <link>https://github.com/chenmobuys/Neylu</link>
     <description>Neylu stable and preview releases</description>
     <item>
+      <title>Neylu 0.1.0</title>
+      <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0</link>
+      <sparkle:version>12</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>12.0.0</sparkle:minimumSystemVersion>
+      <pubDate>Mon, 09 Nov 2026 00:02:08 GMT</pubDate>
+      <description>&lt;!-- neylu-distribution: adhoc --&gt;
+&gt; 正式版 / Stable release · 仅 ad-hoc 签名，未经 Apple 公证；首次打开请参阅 README。
+&gt; Ad hoc signed; not notarized by Apple. See the README for first-launch instructions.
+
+&lt;!-- neylu:en --&gt;
+### English
+
+First stable release. Ad hoc signed and **not notarized by Apple**; follow the README for first-launch instructions. macOS 12 and physical Intel Macs remain untested; both architectures are built and regression-tested on hosted macOS runners.
+
+- Monitor network speed, CPU, GPU, memory, CPU temperature on supported hardware, and disks in a compact native menu bar item. Customize visible metrics, order, spacing, appearance, units, history range, and energy-saving behavior.
+- Retain local history, inspect chart samples, monitor external drives, view licenses in-app, and use verified updates with restart and failure rollback. English and Simplified Chinese are included.
+- Default every installation to stable-only update checks. Add an iPhone-style **Beta Updates → Off / Neylu Pre-release** selection; opting in includes Alpha, Beta, and RC. Persist the choice, share it between manual and background checks, and invalidate previous-channel operations and cached notices when changed. Once the default Homebrew cask reaches stable, later previews no longer replace it.
+- Keep a completed manual update check authoritative over older background requests, preventing stale results from clearing a newly discovered update.
+- Bound update preparation commands by time and output size. Cancel and reap the owned subprocess before removing its private files; use independent bounded cleanup for mounted installers. Add a specific localized preparation-timeout message.
+- Add native regression coverage for manual/background result ordering, unresponsive tools, cancellation, excessive output, and cleanup after cancellation.
+
+&lt;!-- neylu:zh-Hans --&gt;
+### 中文
+
+首个正式版。仅 ad-hoc 签名，**未经 Apple 公证**，首次打开方式见 README。macOS 12 与 Intel 真机仍未实测；两种架构均由云端 macOS runner 原生构建并运行回归。
+
+- 紧凑的原生菜单栏项目展示网速、CPU、GPU、内存、受支持硬件的 CPU 温度与磁盘，可配置显示内容、顺序、间距、外观、单位、历史范围与省电行为。
+- 提供本地历史、图表读数查阅、外盘监控、应用内许可证，以及经校验的更新、重启和失败回滚；支持简体中文与英文。
+- 所有安装版本默认只检查正式版，增加参考 iPhone 的「测试版更新 → 关闭／Neylu 测试版」，主动选择后才包含 Alpha、Beta 和 RC。选择跨重启保存，手动和后台检查统一遵循，切换时使旧通道操作及不适用的提示失效。Homebrew 默认 Cask 首次进入正式版后不再被后续预发布覆盖。
+- 手动更新检查完成后使旧后台请求失效，避免过期结果清除刚发现的新版提示。
+- 为更新准备命令增加超时与输出大小检查，取消时先停止并回收本次子进程，再清理私有文件；映像卸载使用独立的限时清理，并增加准备超时的专用文案。
+- 补充原生回归，覆盖手动／后台结果乱序、无响应工具、取消、过量输出及取消后的清理。
+</description>
+      <neylu:sha256>c5abd437bacbcbf963ab19fffd93334beed859a62be571d9e813074c0e50dca9</neylu:sha256>
+      <enclosure url="https://github.com/chenmobuys/Neylu/releases/download/v0.1.0/Neylu-0.1.0-x86_64.dmg" length="510192" type="application/x-apple-diskimage" />
+    </item>
+    <item>
       <title>Neylu 0.1.0-rc.1</title>
       <link>https://github.com/chenmobuys/Neylu/releases/tag/v0.1.0-rc.1</link>
       <sparkle:version>11</sparkle:version>
